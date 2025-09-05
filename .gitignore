@@ -1,0 +1,50 @@
+# OS junk
+.DS_Store
+Thumbs.db
+Icon?
+._*
+
+# macOS metadata
+.Spotlight-V100
+.Trashes
+.fseventsd
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+.env
+pytest_cache/
+.mypy_cache/
+
+# Node (if any helper tools use it)
+node_modules/
+dist/
+build/
+
+# Logs
+*.log
+
+# Lightroom (we keep scripts/presets, not catalogs/previews)
+*.lrcat*
+*.lrdata/
+*.lrprev/
+
+# Binary caches/archives you don’t intend to version
+*.zip
+*.tar
+*.tar.gz
+*.7z
+
+# Keep empty directories tracked
+!.gitkeep
