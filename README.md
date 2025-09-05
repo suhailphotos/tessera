@@ -6,6 +6,7 @@ scripts + user prefs for houdini, nuke, resolve, photoshop, and lightroom — on
 a single place to version the useful bits from your media apps: startup scripts, menus, shelves, actions, presets, and small helpers. aim is portability and repeatability across machines.
 
 ## structure
+```bash
 tessera/
 ├── apps/
 │   ├── houdini/     # $HOME/houdiniX.Y (prefs, scripts, shelves, otls) — curate what you track
@@ -15,6 +16,7 @@ tessera/
 │   ├── lightroom/   # Lua scripts, presets (not catalogs)
 │   └── shared/      # cross-app utilities, linting, CI
 └── helper/          # repo management helpers (collect/apply/sync)
+```
 
 > empty folders contain a `.gitkeep` so they stay in git.
 
