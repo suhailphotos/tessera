@@ -48,3 +48,16 @@ build/
 
 # Keep empty directories tracked
 !.gitkeep
+# stow runtime payloads: keep dir, ignore contents
+/apps/houdini/stow/common/otls/*
+!/apps/houdini/stow/common/otls/.gitkeep
+
+/apps/houdini/stow/linux/*
+!/apps/houdini/stow/linux/.gitkeep
+
+/apps/houdini/stow/win/*
+!/apps/houdini/stow/win/.gitkeep
+
+# mac/Dropbox noise
+**/.DS_Store
+**/.dropbox*
