@@ -1,0 +1,6 @@
+{
+  "env": [
+    { "KARMA_XPU_MAX_UDIM_U": "13" },
+    { "KARMA_XPU_MAX_UDIM_V": "13" }
+  ]
+}

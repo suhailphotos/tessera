@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<shelfDocument>
+  <toolshelf name="houdiniUtils" label="Houdini Utils">
+    <memberTool name="ren_tex_files1"/>
+  </toolshelf>
+  <tool name="ren_tex_files1" label="Ren Texture" icon="hicon:/SVGIcons.index?SOP_grouprename.svg">
+    <script scriptType="python"><![CDATA[__author__ = "Suhail"
+__credits__ = ["Suhail"]
+__Lisence__ = "MIT"
+__maintainer__ = "Suhail"
+__email__ = "suhailece@gmail.com"
+__status__ = "Development"
+__version__ = "0.1.3"
+
+from houdiniutils.textureTools import main
+from importlib import reload
+
+reload(main)
+main.main()]]></script>
+  </tool>
+  <tool name="ren_tex_files" label="Ren Texture" icon="hicon:/SVGIcons.index?SOP_grouprename.svg">
+    <script scriptType="python"><![CDATA[from houdiniutils.textureTools import main
+from importlib import reload
+
+reload(main)
+main.main()]]></script>
+  </tool>
+</shelfDocument>

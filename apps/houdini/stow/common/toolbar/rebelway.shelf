@@ -1,0 +1,2981 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<shelfDocument>
+  <!-- This file contains definitions of shelves, toolbars, and tools.
+ It should not be hand-edited when it is being used by the application.
+ Note, that two definitions of the same element are not allowed in
+ a single file. -->
+
+  <toolshelf name="rbl" label="Rebelway">
+    <memberTool name="project_setup"/>
+    <memberTool name="version_up"/>
+    <memberTool name="arnold_mtlxv3"/>
+    <memberTool name="customize_variant_name"/>
+    <memberTool name="component_bldr"/>
+    <memberTool name="kb3d_converter"/>
+    <memberTool name="tex_from_disk_ao"/>
+    <memberTool name="tex_from_disk0"/>
+    <memberTool name="triplaner_from_disk"/>
+    <memberTool name="asset_dpt_publish"/>
+    <memberTool name="kitbash_import"/>
+    <memberTool name="hdri"/>
+    <memberTool name="updata_usd_db_filepath"/>
+  </toolshelf>
+
+  <tool name="project_setup" label="Project Setup" icon="hicon:/SVGIcons.index?BUTTONS_flatlist.svg">
+    <script scriptType="python"><![CDATA[import hou
+import sys
+
+
+def shorten_path(path: str, replace_str: str, var: str):
+    return path.replace(replace_str, var)
+        
+    
+
+def set_context_options(show_dir: str, hip_name: str, hip_dir: str, replace_str: str=None, var: str=None):
+    #set $JOB
+    job_dir = show_dir[:-1]
+    asset_dir = show_dir+"assets"
+    shot_dir = show_dir+"shots"
+    hou.hscript("set -g ASSETS = {}".format(asset_dir))
+    hou.hscript("set -g SHOTS = {}".format(shot_dir))
+    hou.hscript("set -g JOB = {}".format(job_dir))
+    
+    #remove file extension from hip_name
+    hip_name_split = hip_name.split(".")
+    hip_name = hip_name.replace("."+hip_name_split[-1], "")
+    
+    #remove show directory from hip path, leaving for shots "shots/SEQ/SHOT/DEPT", leaving for assets "assets/ASSET_TYPE/ASSET_NAME/DEPT"
+    split_proj_str = hip_dir.replace(show_dir, "")
+    split_proj = split_proj_str.split("/")
+    
+    #define variables from split
+    seq = split_proj[1]
+    shot = split_proj[2]
+    dept = split_proj[3]
+    
+    
+    #set context options differently for assets vs shots
+    if "asset" in split_proj[0]:
+        print("asset")
+        dirtype = "asset_type"
+        worktype = "asset"
+        workpath = show_dir + "assets/" + seq + "/" + shot
+        
+    else:
+        dirtype = "seq"
+        worktype = "shot"
+        workpath = show_dir + "shots/" + seq + "/" + shot
+        
+    if replace_str: 
+        show_dir = shorten_path(show_dir, replace_str, var)
+        workpath = shorten_path(workpath, replace_str, var)
+    
+        
+    #set context options    
+    hou.setContextOption("dept", dept)
+    hou.setContextOption(worktype, shot)
+    hou.setContextOption(dirtype, seq)
+    hou.setContextOption("work_type", split_proj[0])
+    hou.setContextOption("show_path", show_dir)
+    hou.setContextOption("publish", workpath + "/_publish")
+    hou.setContextOption("dept_publish", workpath + "/" + dept + "/_publish")
+    
+    #ui popup
+    print("Context Options Updated!")
+    hou.ui.displayMessage("Context Setup Complete! \n\nSanity Check: File directories below should match" + "\nIf these do not match rerun the setup tool and select the correct show root directory \n \n" +hip_dir + "\n" + workpath + "/" + dept + "/scene_files/" + hou.hipFile.basename())
+
+def main():
+    var = '$DROPBOX'
+    replace_str: str = None
+    if sys.platform == 'darwin':
+        replace_str = '/Users/suhail/Library/CloudStorage/Dropbox'
+    elif sys.platform == 'Windows':
+        replace_str = 'C:/Users/Shadow/Dropbox'
+        
+    
+    show_dir = hou.ui.selectFile(start_directory=None, title="Select Project Root Folder (contains shots and assets)", file_type=hou.fileType.Directory)
+    show_dir = hou.expandString(show_dir)
+    
+    
+    #error if no directory selected
+    if show_dir == "":
+        hou.ui.displayMessage("No directory was selected, please run again and select root folder")
+        
+    else:    
+        #hip_name and hip path
+        hip_name = hou.hipFile.basename()
+        hip_dir = hou.hipFile.path()
+        set_context_options(show_dir, hip_name, hip_dir, replace_str, var)
+
+        
+main()]]></script>
+  </tool>
+
+  <tool name="version_up" label="Version Up" icon="hicon:/SVGIcons.index?BUTTONS_up.svg">
+    <script scriptType="python"><![CDATA[hou.hipFile.saveAndIncrementFileName()]]></script>
+  </tool>
+
+  <tool name="kitbash_import" label="Kitbash Importer" icon="$HOME/Library/CloudStorage/Dropbox/matrix/assets/icons/DOWNLOADED/kitbash.png">
+    <script scriptType="python"><![CDATA[import hou
+template_path = f"{hou.getenv('VFX_LIB')}/_templates/kitbash_import.hipnc"
+hou.hipFile.merge(template_path, node_pattern='*component* *mtl_* *dome* *topnet*')]]></script>
+  </tool>
+
+  <tool name="hdri" label="Add HDRI" icon="hicon:/SVGIcons.index?OBJ_light_environment.svg">
+    <script scriptType="python"><![CDATA[import hou
+
+hdri_file_name = 'hdriHaven_sunflowers_partlyCloudy_bright_4k_Raw_v01.exr'
+hdri_file_path = f'$HDRI_LIB/single_frame/{hdri_file_name}'
+
+
+def create_dome_light(file_path):
+    hdri_file_parm = hou.text.encode('inputs:texture:file')
+    hdri_format_parm = hou.text.encode('inputs:texture:format')
+    if not hou.selectedItems():
+        hdri = hou.node('/stage/').createNode('domelight::2.0', 'hdri')
+    else:
+        hdri = hou.selectedItems()[0].createOutputNode('domelight::2.0', 'hdri')
+    hdri.parm(hdri_file_parm).set(file_path)
+    hdri.parm(hdri_format_parm).set('latlong')
+    
+create_dome_light(hdri_file_path)]]></script>
+  </tool>
+
+  <tool name="arnold_mtlxv3" label="Arnold Mtlx v3" icon="hicon:/SVGIcons.index?BUTTONS_material_include.svg">
+    <toolMenuContext name="network">
+      <contextOpType>Vop/subnet</contextOpType>
+    </toolMenuContext>
+    <script scriptType="python"><![CDATA[
+import sys
+import toolutils
+
+outputitem = None
+inputindex = -1
+inputitem = None
+outputindex = -1
+
+num_args = 1
+h_extra_args = ''
+pane = toolutils.activePane(kwargs)
+if not isinstance(pane, hou.NetworkEditor):
+    pane = hou.ui.paneTabOfType(hou.paneTabType.NetworkEditor)
+    if pane is None:
+       hou.ui.displayMessage(
+               'Cannot create node: cannot find any network pane')
+       sys.exit(0)
+else: # We're creating this tool from the TAB menu inside a network editor
+    pane_node = pane.pwd()
+    if "outputnodename" in kwargs and "inputindex" in kwargs:
+        outputitem = pane_node.item(kwargs["outputnodename"])
+        inputindex = kwargs["inputindex"]
+        h_extra_args += 'set arg4 = "' + kwargs["outputnodename"] + '"\n'
+        h_extra_args += 'set arg5 = "' + str(inputindex) + '"\n'
+        num_args = 6
+    if "inputnodename" in kwargs and "outputindex" in kwargs:
+        inputitem = pane_node.item(kwargs["inputnodename"])
+        outputindex = kwargs["outputindex"]
+        h_extra_args += 'set arg6 = "' + kwargs["inputnodename"] + '"\n'
+        h_extra_args += 'set arg9 = "' + str(outputindex) + '"\n'
+        num_args = 9
+    if "autoplace" in kwargs:
+        autoplace = kwargs["autoplace"]
+    else:
+        autoplace = False
+    # If shift-clicked we want to auto append to the current
+    # node
+    if "shiftclick" in kwargs and kwargs["shiftclick"]:
+        if inputitem is None:
+            inputitem = pane.currentNode()
+            outputindex = 0
+    if "nodepositionx" in kwargs and             "nodepositiony" in kwargs:
+        try:
+            pos = [ float( kwargs["nodepositionx"] ),
+                    float( kwargs["nodepositiony"] )]
+        except:
+            pos = None
+    else:
+        pos = None
+
+    if not autoplace and not pane.listMode():
+        if pos is not None:
+            pass
+        elif outputitem is None:
+            pos = pane.selectPosition(inputitem, outputindex, None, -1)
+        else:
+            pos = pane.selectPosition(inputitem, outputindex,
+                                      outputitem, inputindex)
+
+    if pos is not None:
+        if "node_bbox" in kwargs:
+            size = kwargs["node_bbox"]
+            pos[0] -= size[0] / 2
+            pos[1] -= size[1] / 2
+        else:
+            pos[0] -= 0.573625
+            pos[1] -= 0.220625
+        h_extra_args += 'set arg2 = "' + str(pos[0]) + '"\n'
+        h_extra_args += 'set arg3 = "' + str(pos[1]) + '"\n'
+h_extra_args += 'set argc = "' + str(num_args) + '"\n'
+
+pane_node = pane.pwd()
+child_type = pane_node.childTypeCategory().nodeTypes()
+
+if 'collect' not in child_type:
+   hou.ui.displayMessage(
+           'Cannot create node: incompatible pane network type')
+   sys.exit(0)
+
+# First clear the node selection
+pane_node.setSelected(False, True)
+
+h_path = pane_node.path()
+h_preamble = 'set arg1 = "' + h_path + '"\n'
+h_cmd = r'''
+if ($argc < 2 || "$arg2" == "") then
+   set arg2 = 0
+endif
+if ($argc < 3 || "$arg3" == "") then
+   set arg3 = 0
+endif
+# Automatically generated script
+# $arg1 - the path to add this node
+# $arg2 - x position of the tile
+# $arg3 - y position of the tile
+# $arg4 - input node to wire to
+# $arg5 - which input to wire to
+# $arg6 - output node to wire to
+# $arg7 - the type of this node
+# $arg8 - the node is an indirect input
+# $arg9 - index of output from $arg6
+
+\set noalias = 1
+set saved_path = `execute("oppwf")`
+opcf $arg1
+
+# Node $_stage_2k_lib_mtlx (Vop/subnet)
+set _stage_2k_lib_mtlx = `run("opadd -e -n -v subnet mtlx")`
+oplocate -x `$arg2 + 0` -y `$arg3 + 0` $_stage_2k_lib_mtlx
+opspareds '    groupcollapsible {         name    "folder1"         label   "Karma Material Builder"         grouptag { "sidefx::shader_isparm" "0" }          parm {             name    "inherit_ctrl"             label   "Inherit from Class"             type    integer             default { "2" }             menu {                 "0" "Never"                 "1" "Always"                 "2" "Material Flag"             }             range   { 0 10 }         }         parm {             name    "shader_referencetype"             label   "Class Arc"             type    string             default { [ "n = hou.pwd()\\nn_hasFlag = n.isMaterialFlagSet()\\ni = n.evalParm(\'inherit_ctrl\')\\nr = \'none\'\\nif i == 1 or (n_hasFlag and i == 2):\\n    r = \'inherit\'\\nreturn r" python ] }             menu {                 "none"          "None"                 "reference"     "Reference"                 "inherit"       "Inherit"                 "specialize"    "Specialize"                 "represent"     "Represent"             }             parmtag { "sidefx::shader_isparm" "0" }             parmtag { "spare_category" "Shader" }         }         parm {             name    "shader_baseprimpath"             label   "Class Prim Path"             type    string             default { "/__class_mtl__/`$OS`" }             parmtag { "script_action" "import loputils\\nloputils.selectPrimsInParm(kwargs, False)" }             parmtag { "script_action_help" "Select a primitive in the Scene Viewer or Scene Graph Tree pane.\\nCtrl-click to select using the primitive picker dialog." }             parmtag { "script_action_icon" "BUTTONS_reselect" }             parmtag { "sidefx::shader_isparm" "0" }             parmtag { "sidefx::usdpathtype" "prim" }             parmtag { "spare_category" "Shader" }         }         parm {             name    "separator1"             label   "separator1"             type    separator             default { "" }         }         parm {             name    "tabmenumask"             label   "Tab Menu Mask"             type    string             default { "karma USD ^mtlxUsd* ^mtlxramp* ^hmtlxramp* ^hmtlxcubicramp* MaterialX parameter constant collect null genericshader subnet subnetconnector suboutput subinput" }             parmtag { "spare_category" "Tab Menu" }         }         parm {             name    "shader_rendercontextname"             label   "Render Context Name"             type    string             default { "kma" }             parmtag { "sidefx::shader_isparm" "0" }             parmtag { "spare_category" "Shader" }         }         parm {             name    "shader_forcechildren"             label   "Force Translation of Children"             type    toggle             default { "1" }             parmtag { "sidefx::shader_isparm" "0" }             parmtag { "spare_category" "Shader" }         }     }  ' $_stage_2k_lib_mtlx
+chblockbegin
+chadd -t 0 0 $_stage_2k_lib_mtlx shader_referencetype
+chkey -t 0 -v 0 -m 0 -a 0 -A 0 -T a  -F 'n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm(\'inherit_ctrl\')\nr = \'none\'\nif i == 1 or (n_hasFlag and i == 2):\n    r = \'inherit\'\nreturn r' -l p $_stage_2k_lib_mtlx/shader_referencetype
+chblockend
+opparm -V 20.0.653 $_stage_2k_lib_mtlx
+opset -d on -r on -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M off -H on -E off $_stage_2k_lib_mtlx
+opexprlanguage -s hscript $_stage_2k_lib_mtlx
+opuserdata -n '___Version___' -v '20.0.653' $_stage_2k_lib_mtlx
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_mtlx
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_mtlx
+opcf $_stage_2k_lib_mtlx
+
+# Node $_stage_2k_lib_mtlx_inputs (Vop/subinput)
+set _stage_2k_lib_mtlx_inputs = `run("opadd -e -n -v subinput inputs")`
+oplocate -x `$arg2 + -7.7251000000000003` -y `$arg3 + 0.037600000000000001` $_stage_2k_lib_mtlx_inputs
+opset -d on -r on -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M off -H on -E off $_stage_2k_lib_mtlx_inputs
+opexprlanguage -s hscript $_stage_2k_lib_mtlx_inputs
+opuserdata -n '___Version___' -v '20.0.653' $_stage_2k_lib_mtlx_inputs
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_mtlx_inputs
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_mtlx_inputs
+
+# Node $_stage_2k_lib_mtlx_mtlxstandard_surface (Vop/mtlxstandard_surface)
+set _stage_2k_lib_mtlx_mtlxstandard_surface = `run("opadd -e -n -v mtlxstandard_surface mtlxstandard_surface")`
+oplocate -x `$arg2 + -0.2883` -y `$arg3 + 0.037600000000000001` $_stage_2k_lib_mtlx_mtlxstandard_surface
+opparm $_stage_2k_lib_mtlx_mtlxstandard_surface folder0 ( 1 )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M off -H on -E off $_stage_2k_lib_mtlx_mtlxstandard_surface
+opexprlanguage -s hscript $_stage_2k_lib_mtlx_mtlxstandard_surface
+opuserdata -n '___Version___' -v '' $_stage_2k_lib_mtlx_mtlxstandard_surface
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_mtlx_mtlxstandard_surface
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_mtlx_mtlxstandard_surface
+opuserdata -n '__inputgroup_' -v 'collapsed' $_stage_2k_lib_mtlx_mtlxstandard_surface
+opuserdata -n '__inputgroup_Base' -v 'collapsed' $_stage_2k_lib_mtlx_mtlxstandard_surface
+opuserdata -n '__inputgroup_Coat' -v 'collapsed' $_stage_2k_lib_mtlx_mtlxstandard_surface
+opuserdata -n '__inputgroup_Emission' -v 'collapsed' $_stage_2k_lib_mtlx_mtlxstandard_surface
+opuserdata -n '__inputgroup_Geometry' -v 'collapsed' $_stage_2k_lib_mtlx_mtlxstandard_surface
+opuserdata -n '__inputgroup_Sheen' -v 'collapsed' $_stage_2k_lib_mtlx_mtlxstandard_surface
+opuserdata -n '__inputgroup_Specular' -v 'collapsed' $_stage_2k_lib_mtlx_mtlxstandard_surface
+opuserdata -n '__inputgroup_Subsurface' -v 'collapsed' $_stage_2k_lib_mtlx_mtlxstandard_surface
+opuserdata -n '__inputgroup_Thin Film' -v 'collapsed' $_stage_2k_lib_mtlx_mtlxstandard_surface
+opuserdata -n '__inputgroup_Transmission' -v 'collapsed' $_stage_2k_lib_mtlx_mtlxstandard_surface
+
+# Node $_stage_2k_lib_mtlx_mtlxdisplacement (Vop/mtlxdisplacement)
+set _stage_2k_lib_mtlx_mtlxdisplacement = `run("opadd -e -n -v mtlxdisplacement mtlxdisplacement")`
+oplocate -x `$arg2 + -0.2883` -y `$arg3 + -2.4333999999999998` $_stage_2k_lib_mtlx_mtlxdisplacement
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M off -H on -E off $_stage_2k_lib_mtlx_mtlxdisplacement
+opexprlanguage -s hscript $_stage_2k_lib_mtlx_mtlxdisplacement
+opuserdata -n '___Version___' -v '' $_stage_2k_lib_mtlx_mtlxdisplacement
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_mtlx_mtlxdisplacement
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_mtlx_mtlxdisplacement
+
+# Node $_stage_2k_lib_mtlx_Material_Outputs_and_AOVs (Vop/suboutput)
+set _stage_2k_lib_mtlx_Material_Outputs_and_AOVs = `run("opadd -e -n -v suboutput Material_Outputs_and_AOVs")`
+oplocate -x `$arg2 + 2.4633400000000001` -y `$arg3 + -2.2833999999999999` $_stage_2k_lib_mtlx_Material_Outputs_and_AOVs
+opparm -V 20.0.653 $_stage_2k_lib_mtlx_Material_Outputs_and_AOVs name1 ( surface ) name2 ( displacement )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M off -H on -E off $_stage_2k_lib_mtlx_Material_Outputs_and_AOVs
+opexprlanguage -s hscript $_stage_2k_lib_mtlx_Material_Outputs_and_AOVs
+opuserdata -n '___Version___' -v '20.0.653' $_stage_2k_lib_mtlx_Material_Outputs_and_AOVs
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_mtlx_Material_Outputs_and_AOVs
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_mtlx_Material_Outputs_and_AOVs
+
+# Node $_stage_2k_lib_mtlx_material_properties (Vop/kma_material_properties)
+set _stage_2k_lib_mtlx_material_properties = `run("opadd -e -n -v kma_material_properties material_properties")`
+oplocate -x `$arg2 + -0.2883` -y `$arg3 + -3.8721299999999998` $_stage_2k_lib_mtlx_material_properties
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M off -H on -E off $_stage_2k_lib_mtlx_material_properties
+opexprlanguage -s hscript $_stage_2k_lib_mtlx_material_properties
+opuserdata -n '___Version___' -v '' $_stage_2k_lib_mtlx_material_properties
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_mtlx_material_properties
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_mtlx_material_properties
+
+# Node $_stage_2k_lib_mtlx_BaseColor (Vop/mtlximage)
+set _stage_2k_lib_mtlx_BaseColor = `run("opadd -e -n -v mtlximage BaseColor")`
+oplocate -x `$arg2 + -5.2683799999999996` -y `$arg3 + 0.037600000000000001` $_stage_2k_lib_mtlx_BaseColor
+opparm $_stage_2k_lib_mtlx_BaseColor signature ( color3 ) file ( '`chs("../../shader/text_dir")`/`chs("../../shader/mdl_name")`_`chs("../../shader/mtl_name")`_BaseColor_ACES - ACEScg.<UDIM>.exr' ) filtertype ( cubic )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M off -H on -E off $_stage_2k_lib_mtlx_BaseColor
+opexprlanguage -s hscript $_stage_2k_lib_mtlx_BaseColor
+opuserdata -n '___Version___' -v '' $_stage_2k_lib_mtlx_BaseColor
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_mtlx_BaseColor
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_mtlx_BaseColor
+
+# Node $_stage_2k_lib_mtlx_Metallic (Vop/mtlximage)
+set _stage_2k_lib_mtlx_Metallic = `run("opadd -e -n -v mtlximage Metallic")`
+oplocate -x `$arg2 + -5.2683799999999996` -y `$arg3 + -2.6924000000000001` $_stage_2k_lib_mtlx_Metallic
+opparm $_stage_2k_lib_mtlx_Metallic file ( '`chs("../../shader/text_dir")`/`chs("../../shader/mdl_name")`_`chs("../../shader/mtl_name")`_Metallic_Raw.<UDIM>.exr' ) filtertype ( cubic )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M off -H on -E off $_stage_2k_lib_mtlx_Metallic
+opexprlanguage -s hscript $_stage_2k_lib_mtlx_Metallic
+opuserdata -n '___Version___' -v '' $_stage_2k_lib_mtlx_Metallic
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_mtlx_Metallic
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_mtlx_Metallic
+
+# Node $_stage_2k_lib_mtlx_Roughness (Vop/mtlximage)
+set _stage_2k_lib_mtlx_Roughness = `run("opadd -e -n -v mtlximage Roughness")`
+oplocate -x `$arg2 + -5.2683799999999996` -y `$arg3 + -5.4223999999999997` $_stage_2k_lib_mtlx_Roughness
+opparm $_stage_2k_lib_mtlx_Roughness file ( '`chs("../../shader/text_dir")`/`chs("../../shader/mdl_name")`_`chs("../../shader/mtl_name")`_Roughness_Raw.<UDIM>.exr' ) filtertype ( cubic )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M off -H on -E off $_stage_2k_lib_mtlx_Roughness
+opexprlanguage -s hscript $_stage_2k_lib_mtlx_Roughness
+opuserdata -n '___Version___' -v '' $_stage_2k_lib_mtlx_Roughness
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_mtlx_Roughness
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_mtlx_Roughness
+
+# Node $_stage_2k_lib_mtlx_Normal (Vop/mtlximage)
+set _stage_2k_lib_mtlx_Normal = `run("opadd -e -n -v mtlximage Normal")`
+oplocate -x `$arg2 + -5.2683799999999996` -y `$arg3 + -8.1524000000000001` $_stage_2k_lib_mtlx_Normal
+opparm $_stage_2k_lib_mtlx_Normal signature ( color3 ) file ( '`chs("../../shader/text_dir")`/`chs("../../shader/mdl_name")`_`chs("../../shader/mtl_name")`_Normal_Raw.<UDIM>.exr' ) filtertype ( cubic )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M off -H on -E off $_stage_2k_lib_mtlx_Normal
+opexprlanguage -s hscript $_stage_2k_lib_mtlx_Normal
+opuserdata -n '___Version___' -v '' $_stage_2k_lib_mtlx_Normal
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_mtlx_Normal
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_mtlx_Normal
+
+# Node $_stage_2k_lib_mtlx_mtlxnormalmap1 (Vop/mtlxnormalmap)
+set _stage_2k_lib_mtlx_mtlxnormalmap1 = `run("opadd -e -n -v mtlxnormalmap mtlxnormalmap1")`
+oplocate -x `$arg2 + -2.50299` -y `$arg3 + -8.1524000000000001` $_stage_2k_lib_mtlx_mtlxnormalmap1
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M off -H on -E off $_stage_2k_lib_mtlx_mtlxnormalmap1
+opexprlanguage -s hscript $_stage_2k_lib_mtlx_mtlxnormalmap1
+opuserdata -n '___Version___' -v '' $_stage_2k_lib_mtlx_mtlxnormalmap1
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_mtlx_mtlxnormalmap1
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_mtlx_mtlxnormalmap1
+
+# Node $_stage_2k_lib_mtlx_emission (Vop/mtlximage)
+set _stage_2k_lib_mtlx_emission = `run("opadd -e -n -v mtlximage emission")`
+oplocate -x `$arg2 + -5.2683799999999996` -y `$arg3 + -11.049899999999999` $_stage_2k_lib_mtlx_emission
+opparm $_stage_2k_lib_mtlx_emission signature ( color3 ) file ( '`chs("../../shader/text_dir")`/`chs("../../shader/mdl_name")`_`chs("../../shader/mtl_name")`_Emissive_ACES - ACEScg.<UDIM>.exr' ) filtertype ( cubic )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M off -H on -E off $_stage_2k_lib_mtlx_emission
+opexprlanguage -s hscript $_stage_2k_lib_mtlx_emission
+opuserdata -n '___Version___' -v '' $_stage_2k_lib_mtlx_emission
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_mtlx_emission
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_mtlx_emission
+
+# Node $_stage_2k_lib_mtlx_Height (Vop/mtlximage)
+set _stage_2k_lib_mtlx_Height = `run("opadd -e -n -v mtlximage Height")`
+oplocate -x `$arg2 + -5.2683799999999996` -y `$arg3 + -14.073173821450743` $_stage_2k_lib_mtlx_Height
+opparm $_stage_2k_lib_mtlx_Height file ( '`chs("../../shader/text_dir")`/`chs("../../shader/mdl_name")`_`chs("../../shader/mtl_name")`_Height_Raw.<UDIM>.exr' ) filtertype ( cubic )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M off -H on -E off $_stage_2k_lib_mtlx_Height
+opexprlanguage -s hscript $_stage_2k_lib_mtlx_Height
+opuserdata -n '___Version___' -v '' $_stage_2k_lib_mtlx_Height
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_mtlx_Height
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_mtlx_Height
+opcf ..
+opcf $_stage_2k_lib_mtlx
+oporder -e inputs mtlxstandard_surface mtlxdisplacement Material_Outputs_and_AOVs material_properties BaseColor Metallic Roughness Normal mtlxnormalmap1 emission Height 
+opcf ..
+opset -p on $_stage_2k_lib_mtlx
+opcf $arg1
+
+# Node $_stage_2k_lib_ar_mat (Vop/arnold_materialbuilder)
+set _stage_2k_lib_ar_mat = `run("opadd -e -n -v arnold_materialbuilder ar_mat")`
+oplocate -x `$arg2 + 0` -y `$arg3 + -1.8499039999999995` $_stage_2k_lib_ar_mat
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M off -H on -E off $_stage_2k_lib_ar_mat
+opexprlanguage -s hscript $_stage_2k_lib_ar_mat
+opuserdata -n '___Version___' -v '20.0.653' $_stage_2k_lib_ar_mat
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_ar_mat
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_ar_mat
+opcf $_stage_2k_lib_ar_mat
+
+# Node $_stage_2k_lib_ar_mat_OUT_material (Vop/arnold_material)
+set _stage_2k_lib_ar_mat_OUT_material = `run("opadd -e -n -v arnold_material OUT_material")`
+oplocate -x `$arg2 + 1.91435` -y `$arg3 + -0.53735299999999997` $_stage_2k_lib_ar_mat_OUT_material
+opset -d on -r on -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M off -H on -E off $_stage_2k_lib_ar_mat_OUT_material
+opexprlanguage -s hscript $_stage_2k_lib_ar_mat_OUT_material
+opuserdata -n '___Version___' -v '20.0.653' $_stage_2k_lib_ar_mat_OUT_material
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_ar_mat_OUT_material
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_ar_mat_OUT_material
+
+# Node $_stage_2k_lib_ar_mat_baseColor (arnold::Vop/image)
+set _stage_2k_lib_ar_mat_baseColor = `run("opadd -e -n -v arnold::image baseColor")`
+oplocate -x `$arg2 + -5.5963900000000004` -y `$arg3 + -0.68735299999999999` $_stage_2k_lib_ar_mat_baseColor
+opparm -V 20.0.653 $_stage_2k_lib_ar_mat_baseColor filename ( '`chs("../../shader/text_dir")`/`chs("../../shader/mdl_name")`_`chs("../../shader/mtl_name")`_BaseColor_ACES - ACEScg.<UDIM>.exr' ) color_family ( ACES ) color_space ( ACEScg ) filter ( bicubic )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M on -H off -E off $_stage_2k_lib_ar_mat_baseColor
+opexprlanguage -s hscript $_stage_2k_lib_ar_mat_baseColor
+opuserdata -n '___Version___' -v '20.0.653' $_stage_2k_lib_ar_mat_baseColor
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_ar_mat_baseColor
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_ar_mat_baseColor
+
+# Node $_stage_2k_lib_ar_mat_standard_surface1 (arnold::Vop/standard_surface)
+set _stage_2k_lib_ar_mat_standard_surface1 = `run("opadd -e -n -v arnold::standard_surface standard_surface1")`
+oplocate -x `$arg2 + -0.65772799999999998` -y `$arg3 + -0.54411299999999996` $_stage_2k_lib_ar_mat_standard_surface1
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M on -H off -E off $_stage_2k_lib_ar_mat_standard_surface1
+opexprlanguage -s hscript $_stage_2k_lib_ar_mat_standard_surface1
+opuserdata -n '___Version___' -v '20.0.653' $_stage_2k_lib_ar_mat_standard_surface1
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_ar_mat_standard_surface1
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_ar_mat_standard_surface1
+
+# Node $_stage_2k_lib_ar_mat_metalic (arnold::Vop/image)
+set _stage_2k_lib_ar_mat_metalic = `run("opadd -e -n -v arnold::image metalic")`
+oplocate -x `$arg2 + -5.5963900000000004` -y `$arg3 + -2.1073499999999998` $_stage_2k_lib_ar_mat_metalic
+opparm -V 20.0.653 $_stage_2k_lib_ar_mat_metalic filename ( '`chs("../../shader/text_dir")`/`chs("../../shader/mdl_name")`_`chs("../../shader/mtl_name")`_Metallic_Raw.<UDIM>.exr' ) color_family ( Utility ) color_space ( Raw ) filter ( bicubic ) single_channel ( on )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M on -H off -E off $_stage_2k_lib_ar_mat_metalic
+opexprlanguage -s hscript $_stage_2k_lib_ar_mat_metalic
+opuserdata -n '___Version___' -v '20.0.653' $_stage_2k_lib_ar_mat_metalic
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_ar_mat_metalic
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_ar_mat_metalic
+
+# Node $_stage_2k_lib_ar_mat_Roughness (arnold::Vop/image)
+set _stage_2k_lib_ar_mat_Roughness = `run("opadd -e -n -v arnold::image Roughness")`
+oplocate -x `$arg2 + -5.5963900000000004` -y `$arg3 + -3.5185499999999998` $_stage_2k_lib_ar_mat_Roughness
+opparm -V 20.0.653 $_stage_2k_lib_ar_mat_Roughness filename ( '`chs("../../shader/text_dir")`/`chs("../../shader/mdl_name")`_`chs("../../shader/mtl_name")`_Roughness_Raw.<UDIM>.exr' ) color_family ( Utility ) color_space ( Raw ) filter ( bicubic ) single_channel ( on )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M on -H off -E off $_stage_2k_lib_ar_mat_Roughness
+opexprlanguage -s hscript $_stage_2k_lib_ar_mat_Roughness
+opuserdata -n '___Version___' -v '20.0.653' $_stage_2k_lib_ar_mat_Roughness
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_ar_mat_Roughness
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_ar_mat_Roughness
+
+# Node $_stage_2k_lib_ar_mat_normal (arnold::Vop/image)
+set _stage_2k_lib_ar_mat_normal = `run("opadd -e -n -v arnold::image normal")`
+oplocate -x `$arg2 + -5.5963900000000004` -y `$arg3 + -5.0140799999999999` $_stage_2k_lib_ar_mat_normal
+opparm -V 20.0.653 $_stage_2k_lib_ar_mat_normal filename ( '`chs("../../shader/text_dir")`/`chs("../../shader/mdl_name")`_`chs("../../shader/mtl_name")`_Normal_Raw.<UDIM>.exr' ) color_family ( Utility ) color_space ( Raw ) filter ( bicubic )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M on -H off -E off $_stage_2k_lib_ar_mat_normal
+opexprlanguage -s hscript $_stage_2k_lib_ar_mat_normal
+opuserdata -n '___Version___' -v '20.0.653' $_stage_2k_lib_ar_mat_normal
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_ar_mat_normal
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_ar_mat_normal
+
+# Node $_stage_2k_lib_ar_mat_emission (arnold::Vop/image)
+set _stage_2k_lib_ar_mat_emission = `run("opadd -e -n -v arnold::image emission")`
+oplocate -x `$arg2 + -5.5963900000000004` -y `$arg3 + -6.6140800000000004` $_stage_2k_lib_ar_mat_emission
+opparm -V 20.0.653 $_stage_2k_lib_ar_mat_emission filename ( '`chs("../../shader/text_dir")`/`chs("../../shader/mdl_name")`_`chs("../../shader/mtl_name")`_Emissive_ACES - ACEScg.<UDIM>.exr' ) color_family ( ACES ) color_space ( ACEScg ) filter ( bicubic )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M on -H off -E off $_stage_2k_lib_ar_mat_emission
+opexprlanguage -s hscript $_stage_2k_lib_ar_mat_emission
+opuserdata -n '___Version___' -v '20.0.653' $_stage_2k_lib_ar_mat_emission
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_ar_mat_emission
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_ar_mat_emission
+
+# Node $_stage_2k_lib_ar_mat_normal_map1 (arnold::Vop/normal_map)
+set _stage_2k_lib_ar_mat_normal_map1 = `run("opadd -e -n -v arnold::normal_map normal_map1")`
+oplocate -x `$arg2 + -3.1740300000000001` -y `$arg3 + -5.0140799999999999` $_stage_2k_lib_ar_mat_normal_map1
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M off -H on -E off $_stage_2k_lib_ar_mat_normal_map1
+opexprlanguage -s hscript $_stage_2k_lib_ar_mat_normal_map1
+opuserdata -n '___Version___' -v '20.0.653' $_stage_2k_lib_ar_mat_normal_map1
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_ar_mat_normal_map1
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_ar_mat_normal_map1
+
+# Node $_stage_2k_lib_ar_mat_Height (arnold::Vop/image)
+set _stage_2k_lib_ar_mat_Height = `run("opadd -e -n -v arnold::image Height")`
+oplocate -x `$arg2 + -5.5963900000000004` -y `$arg3 + -8.1820100197831742` $_stage_2k_lib_ar_mat_Height
+opparm -V 20.0.653 $_stage_2k_lib_ar_mat_Height filename ( '`chs("../../shader/text_dir")`/`chs("../../shader/mdl_name")`_`chs("../../shader/mtl_name")`_Height_Raw.<UDIM>.exr' ) color_family ( Utility ) color_space ( Raw ) filter ( bicubic ) single_channel ( on )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M on -H off -E off $_stage_2k_lib_ar_mat_Height
+opexprlanguage -s hscript $_stage_2k_lib_ar_mat_Height
+opuserdata -n '___Version___' -v '20.0.653' $_stage_2k_lib_ar_mat_Height
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_ar_mat_Height
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_ar_mat_Height
+opcf ..
+opcf $_stage_2k_lib_ar_mat
+oporder -e OUT_material baseColor standard_surface1 metalic Roughness normal emission normal_map1 Height 
+opcf ..
+opset -p on $_stage_2k_lib_ar_mat
+opcf $arg1
+
+# Node $_stage_2k_lib_shader (Vop/collect)
+set _stage_2k_lib_shader = `run("opadd -e -n -v collect shader")`
+oplocate -x `$arg2 + 2.8753499999999992` -y `$arg3 + -0.86989999999999945` $_stage_2k_lib_shader
+opspareds '    multiparm {         name    "inputnum"         label    "Number of Inputs"         baseparm         invisible         default 0          parm {             name    "inputname#"             baseparm             label   "Input Name #"             invisible             export  none         }         parm {             name    "inputlabel#"             baseparm             label   "Input Label #"             invisible             export  none         }     }      parm {         name    "text_dir"         label   "Texture Folder"         type    directory         default { "" }         parmtag { "script_callback_language" "python" }     }     parm {         name    "mdl_name"         label   "Model Name"         type    string         default { "" }         parmtag { "script_callback_language" "python" }     }     parm {         name    "mtl_name"         label   "Material Name"         type    string         default { "" }         parmtag { "script_callback_language" "python" }     }     groupcollapsible {         name    "folder1"         label   "Material"          parm {             name    "inherit_ctrl"             label   "Inherit from Class"             type    integer             default { "2" }             menu {                 "0" "Never"                 "1" "Always"                 "2" "Material Flag"             }             range   { 0 10 }         }         parm {             name    "shader_referencetype"             label   "Class Arc"             type    string             default { [ "n = hou.pwd()\\nn_hasFlag = n.isMaterialFlagSet()\\ni = n.evalParm(\'inherit_ctrl\')\\nr = \'none\'\\nif i == 1 or (n_hasFlag and i == 2):\\n    r = \'inherit\'\\nreturn r" python ] }             menu {                 "none"          "None"                 "reference"     "Reference"                 "inherit"       "Inherit"                 "specialize"    "Specialize"                 "represent"     "Represent"             }             parmtag { "sidefx::shader_isparm" "0" }             parmtag { "spare_category" "Shader" }         }         parm {             name    "shader_baseprimpath"             label   "Class Prim Path"             type    string             default { "/__class_mtl__/`$OS`" }             parmtag { "script_action" "import loputils\\nloputils.selectPrimsInParm(kwargs, False)" }             parmtag { "script_action_help" "Select a primitive in the Scene Viewer or Scene Graph Tree pane.\\nCtrl-click to select using the primitive picker dialog." }             parmtag { "script_action_icon" "BUTTONS_reselect" }             parmtag { "sidefx::shader_isparm" "0" }             parmtag { "sidefx::usdpathtype" "prim" }             parmtag { "spare_category" "Shader" }         }     }  ' $_stage_2k_lib_shader
+opparm $_stage_2k_lib_shader  inputnum ( 2 )
+chblockbegin
+chadd -t 0 0 $_stage_2k_lib_shader shader_referencetype
+chkey -t 0 -v 0 -m 0 -a 0 -A 0 -T a  -F 'n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm(\'inherit_ctrl\')\nr = \'none\'\nif i == 1 or (n_hasFlag and i == 2):\n    r = \'inherit\'\nreturn r' -l p $_stage_2k_lib_shader/shader_referencetype
+chblockend
+opparm -V 20.0.653 $_stage_2k_lib_shader inputnum ( 2 ) text_dir ( '$JOB/assets/' ) mtl_name ( '$OS' )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -L off -M off -H on -E on $_stage_2k_lib_shader
+opexprlanguage -s hscript $_stage_2k_lib_shader
+opuserdata -n '___Version___' -v '20.0.653' $_stage_2k_lib_shader
+opuserdata -n '___toolcount___' -v '3' $_stage_2k_lib_shader
+opuserdata -n '___toolid___' -v 'collect_matx_arnold_shaders' $_stage_2k_lib_shader
+opset -p on $_stage_2k_lib_shader
+
+opcf $arg1
+opcf $_stage_2k_lib_mtlx
+opwire -n $_stage_2k_lib_mtlx_BaseColor -1 $_stage_2k_lib_mtlx_mtlxstandard_surface
+opwire -n $_stage_2k_lib_mtlx_Metallic -3 $_stage_2k_lib_mtlx_mtlxstandard_surface
+opwire -n $_stage_2k_lib_mtlx_Roughness -6 $_stage_2k_lib_mtlx_mtlxstandard_surface
+opwire -n $_stage_2k_lib_mtlx_mtlxnormalmap1 -40 $_stage_2k_lib_mtlx_mtlxstandard_surface
+opwire -n $_stage_2k_lib_mtlx_mtlxstandard_surface -0 $_stage_2k_lib_mtlx_Material_Outputs_and_AOVs
+opwire -n $_stage_2k_lib_mtlx_mtlxdisplacement -1 $_stage_2k_lib_mtlx_Material_Outputs_and_AOVs
+opwire -n $_stage_2k_lib_mtlx_material_properties -2 $_stage_2k_lib_mtlx_Material_Outputs_and_AOVs
+opwire -n $_stage_2k_lib_mtlx_Normal -0 $_stage_2k_lib_mtlx_mtlxnormalmap1
+opcf ..
+opcf $arg1
+opcf $_stage_2k_lib_ar_mat
+opwire -n $_stage_2k_lib_ar_mat_standard_surface1 -0 $_stage_2k_lib_ar_mat_OUT_material
+opwire -n $_stage_2k_lib_ar_mat_baseColor -1 $_stage_2k_lib_ar_mat_standard_surface1
+opwire -n $_stage_2k_lib_ar_mat_metalic -3 $_stage_2k_lib_ar_mat_standard_surface1
+opwire -n $_stage_2k_lib_ar_mat_Roughness -6 $_stage_2k_lib_ar_mat_standard_surface1
+opwire -n $_stage_2k_lib_ar_mat_normal_map1 -39 $_stage_2k_lib_ar_mat_standard_surface1
+opwire -n $_stage_2k_lib_ar_mat_normal -0 $_stage_2k_lib_ar_mat_normal_map1
+opcf ..
+opcf $arg1
+opwire -n $_stage_2k_lib_mtlx -0 $_stage_2k_lib_shader
+opwire -n $_stage_2k_lib_ar_mat -1 $_stage_2k_lib_shader
+
+set oidx = 0
+if ($argc >= 9 && "$arg9" != "") then
+    set oidx = $arg9
+endif
+
+if ($argc >= 5 && "$arg4" != "") then
+    set output = $_stage_2k_lib_shader
+    opwire -n $output -$arg5 $arg4
+endif
+if ($argc >= 6 && "$arg6" != "") then
+    set input = $_stage_2k_lib_mtlx
+    if ($arg8) then
+        opwire -n -i $arg6 -0 $input
+    else
+        opwire -n -o $oidx $arg6 -0 $input
+    endif
+endif
+opcf $saved_path
+'''
+hou.hscript(h_preamble + h_extra_args + h_cmd)
+]]></script>
+  </tool>
+
+  <tool name="customize_variant_name" label="Set Variant Name" icon="LOP_storeparametervalues">
+    <helpURL>operator:Lop/storeparametervalues</helpURL>
+    <toolMenuContext name="network">
+      <contextOpType>Lop/storeparametervalues</contextOpType>
+    </toolMenuContext>
+    <script scriptType="python"><![CDATA[
+import sys
+import toolutils
+
+outputitem = None
+inputindex = -1
+inputitem = None
+outputindex = -1
+
+num_args = 1
+h_extra_args = ''
+pane = toolutils.activePane(kwargs)
+if not isinstance(pane, hou.NetworkEditor):
+    pane = hou.ui.paneTabOfType(hou.paneTabType.NetworkEditor)
+    if pane is None:
+       hou.ui.displayMessage(
+               'Cannot create node: cannot find any network pane')
+       sys.exit(0)
+else: # We're creating this tool from the TAB menu inside a network editor
+    pane_node = pane.pwd()
+    if "outputnodename" in kwargs and "inputindex" in kwargs:
+        outputitem = pane_node.item(kwargs["outputnodename"])
+        inputindex = kwargs["inputindex"]
+        h_extra_args += 'set arg4 = "' + kwargs["outputnodename"] + '"\n'
+        h_extra_args += 'set arg5 = "' + str(inputindex) + '"\n'
+        num_args = 6
+    if "inputnodename" in kwargs and "outputindex" in kwargs:
+        inputitem = pane_node.item(kwargs["inputnodename"])
+        outputindex = kwargs["outputindex"]
+        h_extra_args += 'set arg6 = "' + kwargs["inputnodename"] + '"\n'
+        h_extra_args += 'set arg9 = "' + str(outputindex) + '"\n'
+        num_args = 9
+    if "autoplace" in kwargs:
+        autoplace = kwargs["autoplace"]
+    else:
+        autoplace = False
+    # If shift-clicked we want to auto append to the current
+    # node
+    if "shiftclick" in kwargs and kwargs["shiftclick"]:
+        if inputitem is None:
+            inputitem = pane.currentNode()
+            outputindex = 0
+    if "nodepositionx" in kwargs and             "nodepositiony" in kwargs:
+        try:
+            pos = [ float( kwargs["nodepositionx"] ),
+                    float( kwargs["nodepositiony"] )]
+        except:
+            pos = None
+    else:
+        pos = None
+
+    if not autoplace and not pane.listMode():
+        if pos is not None:
+            pass
+        elif outputitem is None:
+            pos = pane.selectPosition(inputitem, outputindex, None, -1)
+        else:
+            pos = pane.selectPosition(inputitem, outputindex,
+                                      outputitem, inputindex)
+
+    if pos is not None:
+        if "node_bbox" in kwargs:
+            size = kwargs["node_bbox"]
+            pos[0] -= size[0] / 2
+            pos[1] -= size[1] / 2
+        else:
+            pos[0] -= 0.573625
+            pos[1] -= 0.220625
+        h_extra_args += 'set arg2 = "' + str(pos[0]) + '"\n'
+        h_extra_args += 'set arg3 = "' + str(pos[1]) + '"\n'
+h_extra_args += 'set argc = "' + str(num_args) + '"\n'
+
+pane_node = pane.pwd()
+child_type = pane_node.childTypeCategory().nodeTypes()
+
+if 'storeparametervalues' not in child_type:
+   hou.ui.displayMessage(
+           'Cannot create node: incompatible pane network type')
+   sys.exit(0)
+
+# First clear the node selection
+pane_node.setSelected(False, True)
+
+h_path = pane_node.path()
+h_preamble = 'set arg1 = "' + h_path + '"\n'
+h_cmd = r'''
+if ($argc < 2 || "$arg2" == "") then
+   set arg2 = 0
+endif
+if ($argc < 3 || "$arg3" == "") then
+   set arg3 = 0
+endif
+# Automatically generated script
+# $arg1 - the path to add this node
+# $arg2 - x position of the tile
+# $arg3 - y position of the tile
+# $arg4 - input node to wire to
+# $arg5 - which input to wire to
+# $arg6 - output node to wire to
+# $arg7 - the type of this node
+# $arg8 - the node is an indirect input
+# $arg9 - index of output from $arg6
+
+\set noalias = 1
+set saved_path = `execute("oppwf")`
+opcf $arg1
+
+# Node $_stage_set_variant_name (Lop/storeparametervalues)
+set _stage_set_variant_name = `run("opadd -e -n -v storeparametervalues set_variant_name")`
+oplocate -x `$arg2 + 0` -y `$arg3 + 0` $_stage_set_variant_name
+opparm $_stage_set_variant_name  parameters ( 1 )
+opparm $_stage_set_variant_name parameters ( 1 ) name1 ( component:geo:variantname ) valuestring1 ( no_landing_gear )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -D off $_stage_set_variant_name
+opexprlanguage -s hscript $_stage_set_variant_name
+opuserdata -n '___Version___' -v '' $_stage_set_variant_name
+opset -p on $_stage_set_variant_name
+
+opcf $arg1
+opwire -n $_stage_prune1 -0 $_stage_set_variant_name
+
+set oidx = 0
+if ($argc >= 9 && "$arg9" != "") then
+    set oidx = $arg9
+endif
+
+if ($argc >= 5 && "$arg4" != "") then
+    set output = $_stage_set_variant_name
+    opwire -n $output -$arg5 $arg4
+endif
+if ($argc >= 6 && "$arg6" != "") then
+    set input = $_stage_set_variant_name
+    if ($arg8) then
+        opwire -n -i $arg6 -0 $input
+    else
+        opwire -n -o $oidx $arg6 -0 $input
+    endif
+endif
+opcf $saved_path
+'''
+hou.hscript(h_preamble + h_extra_args + h_cmd)
+]]></script>
+  </tool>
+
+  <tool name="component_bldr" label="Component Buildder" icon="hicon:/SVGIcons.index?LOP_componentgeometry.svg">
+    <script scriptType="python"><![CDATA[import hou
+template_path = f"{hou.getenv('VFX_LIB')}/_templates/custom_component_builder.hipnc"
+hou.hipFile.merge(template_path, node_pattern='*component* *mtl* *domelight*')]]></script>
+  </tool>
+
+  <tool name="kb3d_converter" label="KB3D Converter" icon="$HOME/Library/CloudStorage/Dropbox/matrix/assets/icons/DOWNLOADED/kitbash.png">
+    <script scriptType="python"><![CDATA[import hou
+
+### RBL KB3D Converter_v001
+
+###SET DEFAULT VALUES, NO SPACES ALLOWED####
+default_matlib_name = "Converted_Material_Library"
+default_basecol_name = "basecolor"
+default_metallic_name = "metallic"
+default_roughness_name = "roughness"
+default_normal_name = "normal"
+default_displacement_name = "height"
+default_emission_name = "emissive"
+default_opacity_name = "opacity"
+default_transmission_name = "refraction"
+
+
+#select nodes"
+nodes = hou.selectedNodes()
+
+print("INITIALIZING KB3D CONVERTER")
+
+#check if arnold exists
+hpath = hou.houdiniPath()
+ar_exists = 0
+
+for x in hpath:
+    if ("htoa" in x):
+        ar_exists = 1
+        print("HtoA Found")
+
+        
+#setup arnold colorspace function
+def ar_colorspace_setup(input_var, cf_var, cs_var, input_num, output_num):
+    color_family = input_var.path()+"/color_family"
+    color_space = input_var.path()+"/color_space"
+    single_channel = input_var.path()+"/single_channel"
+    
+    input_var.parm(color_family).set(cf_var)
+    input_var.parm(color_space).set(cs_var)
+    
+    ar_surface.setNamedInput(input_num, ar_image, output_num)
+    
+    if len(output_num)==1:
+        input_var.parm(single_channel).set(1)
+
+        
+#setup Karma colorspace function
+def km_colorspace_setup(input_var, cs_var, input_num, output_num):
+    signature = input_var.path()+"/signature"
+    input_var.parm(signature).set(cs_var)
+    
+    km_surface.setNamedInput(input_num, km_image, output_num)
+       
+        
+#Error if nothing selected    
+if(len(nodes)==0):
+    hou.ui.displayMessage("Please select nodes!")
+    quit()
+    
+    
+#Error if parent node isn't matnet    
+topnode_path = nodes[0].parent().path()
+topnode = hou.node(topnode_path).type().name()
+
+if (("mat"==topnode) or ("materiallibrary" in topnode) or ("matnet"==topnode)):
+    print("Parent is "+topnode)
+
+else:
+    hou.ui.displayMessage("Selected material nodes must be directly in \na matnet, material library, or /mat context!", severity=hou.severityType.Error)
+    quit() 
+    
+    
+#turn update mode to manual
+hou.ui.setUpdateMode(hou.updateMode.Manual)
+
+#create material library
+new_root = "/stage"
+mtl_lib = hou.node(new_root).createNode("materiallibrary", default_matlib_name)
+mtl_lib.parm("matpathprefix").set("/ASSET/mtl/")    
+
+
+#remap input texture names
+user_input_button, user_input_values = hou.ui.readMultiInput(
+    "Set texture ID names. No Spaces Allowed!", ("Base Color:", "Metallic:", "Roughness:", "Normal:", "Displacement:", "Emission:", "Opacity:", "Refraction:"),
+    initial_contents=(default_basecol_name, default_metallic_name, default_roughness_name, default_normal_name, default_displacement_name, default_emission_name, default_opacity_name, default_transmission_name),
+    title="Remap Input",
+    buttons=("OK", "Cancel"),
+    default_choice=0, close_choice=1,
+)
+
+user_basecol_name = user_input_values[0]
+user_metallic_name = user_input_values[1]
+user_roughness_name = user_input_values[2]
+user_normal_name = user_input_values[3]
+user_displacement_name = user_input_values[4]
+user_emission_name = user_input_values[5]
+user_opacity_name = user_input_values[6]
+user_transmission_name = user_input_values[7]
+
+#define error'd materials
+error_mat = []
+
+#loop through each selected node
+for x in nodes:
+
+    #set initial vars
+    node = x
+    path = x.path()
+    root = path[:path.rfind("/")+1]
+            
+    pos = node.position()
+    name = node.name()
+    
+    child = node.children()
+    
+    #create texture array
+    textures = []
+    
+    #reset remap_found
+    remap_found = 0
+    for y in child:
+        #if ("image" in y.name()):                
+        if hou.nodeType(y.path()).name()=="mtlximage":
+            tex_path = y.path()+"/file"
+            file = hou.parm(tex_path).unexpandedString()
+            textures.append(file)
+                     
+        if (hou.nodeType(y.path()).name()=="mtlxdisplacement"):
+            disp_amount = y.parm("scale").eval()
+            
+        if (hou.nodeType(y.path()).name()=="mtlxremap"):
+            remap_found = 1
+            low_offset = y.parm("outlow").eval()
+            high_offset = y.parm("outhigh").eval()    
+            
+    #set root to new material lib           
+    if (len(textures)==0):
+        error_mat.append(name)
+        
+    
+    root=mtl_lib.path()
+    
+    print("Creating "+name)
+    
+###### ARNOLD SETUP #########
+    if (ar_exists==1):
+
+        #create arnold material builder
+        ar = hou.node(root).createNode("arnold_materialbuilder", "arnold_"+name)
+        ar.setPosition(hou.Vector2(pos[0]+4, pos[1]))
+    
+        ar_path = ar.path()+"/"
+        ar_output = hou.node(ar.path()+"/OUT_material")
+        
+        #create standard surface
+        ar_surface = hou.node(ar_path).createNode("standard_surface")
+        ar_output.setInput(0, ar_surface, 0)
+        
+        for text in textures:
+            #create image node
+            ar_image = hou.node(ar_path).createNode("image")
+            
+    
+            #set file path
+            ar_fileparm = ar_image.path()+"/filename"
+            text = hou.expandString(text) # <--- Line inserted by Suhail because of the bug in Arnold
+            ar_image.parm(ar_fileparm).set(text)
+            
+            
+            #define initial inputs
+            if (("_")+user_basecol_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "sRGB - Texture", "base_color", "rgba")
+                
+            if (("_")+user_metallic_name) in text:
+                ar_colorspace_setup(ar_image, "ACES", "ACEScg", "metalness", "r")                  
+    
+            if (("_")+user_roughness_name) in text:
+                ar_colorspace_setup(ar_image, "ACES", "ACEScg", "specular_roughness", "r")
+                
+            if (("_")+user_emission_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "sRGB - Texture", "emission_color", "r")
+                ar_surface.parm(ar_path+"standard_surface1/emission").set(1)
+                
+            if (("_")+user_opacity_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "Raw", "opacity", "r")
+                
+            if (("_")+user_transmission_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "Raw", "transmission", "r")
+            
+            #specialize for normal and for height    
+            if (("_")+user_normal_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "Raw", "normal", "rgba") 
+                
+                #create normal node
+                ar_normal = hou.node(ar_path).createNode("normal_map")
+                
+                #connect inputs and position
+                ar_normal.setNamedInput("input", ar_image, "rgba")
+                ar_surface.setNamedInput("normal", ar_normal, "vector")
+                
+            #specialize for height displacement
+            if (("_")+user_displacement_name) in text:
+                ar_colorspace_setup(ar_image, "ACES", "ACEScg", "diffuse_roughness", "rgba")
+                
+                ar_surface.setInput(2, None)
+                ar_height = hou.node(ar_path).createNode("arnold::multiply", "displacement_amount")
+                
+                ar_height.parm("input2r").set(disp_amount)
+                ar_height.parm("input2g").set(disp_amount)
+                ar_height.parm("input2b").set(disp_amount)
+                
+                #if remapped
+                if (remap_found==1):
+                    ar_height_offset = hou.node(ar_path).createNode("arnold::range", "displacement_remap")
+                    ar_height_offset.parm("output_min").set(low_offset)
+                    ar_height_offset.parm("output_max").set(high_offset)
+                    
+                    ar_height_offset.setNamedInput("input", ar_image, "rgba")
+                    ar_height.setNamedInput("input1", ar_height_offset, "rgb")
+                    ar_output.setNamedInput("displacement", ar_height, "rgb")
+                    
+                else:
+                    ar_height.setNamedInput("input1", ar_image, "rgba")
+                    ar_output.setNamedInput("displacement", ar_height, "rgb")
+                                                                                            
+            #name image nodes
+            nodename = text.split("/")
+            node_name = nodename[-1].replace(".jpg", "")
+            node_name = nodename[-1].replace(".png", "")
+            ar_image.setName(node_name)
+            
+            print("Created Arnold "+node_name)
+            
+        #nicely layout arnold nodes
+        ar.layoutChildren(horizontal_spacing = 2.0, vertical_spacing = 2.0)
+        ar.setMaterialFlag(False)
+       
+######### END ARNOLD SETUP ####################
+
+######### START KARMA SETUP ####################
+    #create Karma material builder
+    km = hou.node(root).createNode("subnet", "karma_"+name)
+    km.setPosition(hou.Vector2(pos[0]+4, pos[1]-1.5))
+
+    km_path = km.path()+"/"
+    km_output = hou.node(km.path()+"/suboutput1")
+    #hou.node(km.path()+"/subinput1").destroy()
+    
+######### START KARMA MTL BUILDER EXTRACT #############
+
+    km.setDebugFlag(False)
+    km.setDetailLowFlag(False)
+    km.setDetailMediumFlag(False)
+    km.setDetailHighFlag(True)
+    km.bypass(False)
+    km.setCompressFlag(True)
+    km.hide(False)
+    km.setSelected(True)
+    
+    hou_parm_template_group = hou.ParmTemplateGroup()
+    # Code for parameter template
+    hou_parm_template = hou.FolderParmTemplate("folder1", "Karma Material Builder", folder_type=hou.folderType.Collapsible, default_value=0, ends_tab_group=False)
+    hou_parm_template.setTags({"group_type": "collapsible", "sidefx::shader_isparm": "0"})
+    # Code for parameter template
+    hou_parm_template2 = hou.IntParmTemplate("inherit_ctrl", "Inherit from Class", 1, default_value=([2]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=(["0","1","2"]), menu_labels=(["Never","Always","Material Flag"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.StringParmTemplate("shader_referencetype", "Class Arc", 1, default_value=(["n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r"]), default_expression=(["n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r"]), default_expression_language=([hou.scriptLanguage.Python]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=(["none","reference","inherit","specialize","represent"]), menu_labels=(["None","Reference","Inherit","Specialize","Represent"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+    hou_parm_template2.setTags({"sidefx::shader_isparm": "0", "spare_category": "Shader"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.StringParmTemplate("shader_baseprimpath", "Class Prim Path", 1, default_value=(["/__class_mtl__/`$OS`"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+    hou_parm_template2.setTags({"script_action": "import loputils\nloputils.selectPrimsInParm(kwargs, False)", "script_action_help": "Select a primitive in the Scene Viewer or Scene Graph Tree pane.\nCtrl-click to select using the primitive picker dialog.", "script_action_icon": "BUTTONS_reselect", "sidefx::shader_isparm": "0", "sidefx::usdpathtype": "prim", "spare_category": "Shader"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.SeparatorParmTemplate("separator1")
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.StringParmTemplate("tabmenumask", "Tab Menu Mask", 1, default_value=(["karma USD ^mtlxUsd* ^mtlxramp* ^hmtlxramp* ^hmtlxcubicramp* MaterialX parameter constant collect null genericshader subnet subnetconnector suboutput subinput"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+    hou_parm_template2.setTags({"spare_category": "Tab Menu"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.StringParmTemplate("shader_rendercontextname", "Render Context Name", 1, default_value=(["kma"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+    hou_parm_template2.setTags({"sidefx::shader_isparm": "0", "spare_category": "Shader"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.ToggleParmTemplate("shader_forcechildren", "Force Translation of Children", default_value=True)
+    hou_parm_template2.setTags({"sidefx::shader_isparm": "0", "spare_category": "Shader"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    hou_parm_template_group.append(hou_parm_template)
+    km.setParmTemplateGroup(hou_parm_template_group)
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/folder1 parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("folder1")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set(0)
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/inherit_ctrl parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("inherit_ctrl")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set(2)
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/shader_referencetype parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("shader_referencetype")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set("inherit")
+    hou_parm.setAutoscope(False)
+    
+    # Code for first keyframe.
+    # Code for keyframe.
+    hou_keyframe = hou.StringKeyframe()
+    hou_keyframe.setTime(0)
+    hou_keyframe.setExpression("n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r", hou.exprLanguage.Python)
+    hou_parm.setKeyframe(hou_keyframe)
+    
+    # Code for last keyframe.
+    # Code for keyframe.
+    hou_keyframe = hou.StringKeyframe()
+    hou_keyframe.setTime(0)
+    hou_keyframe.setExpression("n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r", hou.exprLanguage.Python)
+    hou_parm.setKeyframe(hou_keyframe)
+    
+    # Code for keyframe.
+    hou_keyframe = hou.StringKeyframe()
+    hou_keyframe.setTime(0)
+    hou_keyframe.setExpression("n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r", hou.exprLanguage.Python)
+    hou_parm.setKeyframe(hou_keyframe)
+    
+    # Code for keyframe.
+    hou_keyframe = hou.StringKeyframe()
+    hou_keyframe.setTime(0)
+    hou_keyframe.setExpression("n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r", hou.exprLanguage.Python)
+    hou_parm.setKeyframe(hou_keyframe)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/shader_baseprimpath parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("shader_baseprimpath")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set("/__class_mtl__/`$OS`")
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/tabmenumask parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("tabmenumask")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set("karma USD ^mtlxUsd* ^mtlxramp* ^hmtlxramp* ^hmtlxcubicramp* MaterialX parameter constant collect null genericshader subnet subnetconnector suboutput subinput")
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/shader_rendercontextname parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("shader_rendercontextname")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set("kma")
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/shader_forcechildren parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("shader_forcechildren")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set(1)
+    hou_parm.setAutoscope(False)
+    
+    
+    km.setExpressionLanguage(hou.exprLanguage.Hscript)
+    
+    if hasattr(km, "syncNodeVersionIfNeeded"):
+        km.syncNodeVersionIfNeeded("20.0.653")
+####### END KARMA BUILDER EXTRACT#########            
+    
+    #create standard surface
+    km_surface = hou.node(km_path).createNode("mtlxstandard_surface")
+    
+    km_output.setInput(0, km_surface, 0)
+    
+    for text in textures:
+        #create image node
+        km_image = hou.node(km_path).createNode("mtlximage")
+        
+
+        #set file path
+        km_fileparm = km_image.path()+"/file"
+        km_image.parm(km_fileparm).set(text)
+
+        
+        #define initial inputs
+        if (("_")+user_basecol_name) in text:
+            km_colorspace_setup(km_image, "color3", "base_color", "out")
+            
+        if (("_")+user_metallic_name) in text:
+            km_colorspace_setup(km_image, "default", "metalness", "out")                  
+
+        if (("_")+user_roughness_name) in text:
+            km_colorspace_setup(km_image, "default", "specular_roughness", "out")
+            
+        if (("_")+user_emission_name) in text:
+            km_colorspace_setup(km_image, "color3", "emission_color", "out")
+            km_surface.parm(km_path+"mtlxstandard_surface1/emission").set(1)
+            
+        if (("_")+user_opacity_name) in text:
+            km_colorspace_setup(km_image, "default", "opacity", "out")
+            
+        if (("_")+user_transmission_name) in text:
+            km_colorspace_setup(km_image, "default", "transmission", "out")
+        
+        #specialize for normal and for height    
+        if (("_")+user_normal_name) in text:
+            km_colorspace_setup(km_image, "vector3", "normal", "out") 
+            
+            #create normal node
+            km_normal = hou.node(km_path).createNode("mtlxnormalmap")
+            
+            #connect inputs and position
+            km_normal.setNamedInput("in", km_image, "out")
+            km_surface.setNamedInput("normal", km_normal, "out")
+            
+        #specialize for height displacement
+        if (("_")+user_displacement_name) in text:
+            km_colorspace_setup(km_image, "default", "diffuse_roughness", "out")
+            
+            #create displacement node and set scale
+            km_surface.setInput(2, None)
+            km_height = hou.node(km_path).createNode("mtlxdisplacement")
+            km_height.parm("scale").set(disp_amount)
+            
+            if (remap_found==1):
+                #create offset node set range
+                km_height_offset = hou.node(km_path).createNode("mtlxremap")
+                km_height_offset.parm("outlow").set(low_offset)
+                km_height_offset.parm("outhigh").set(high_offset)
+                
+                #connect nodes
+                km_height_offset.setNamedInput("in", km_image, "out")
+                km_height.setNamedInput("displacement", km_height_offset, "out")
+                km_output.setInput(1, km_height, 0)
+                
+            else:
+                km_height.setNamedInput("displacement", km_image, "out")
+                km_output.setInput(1, km_height, 0)
+                
+            
+
+        
+        #name image nodes
+        nodename = text.split("/")
+        node_name = nodename[-1].replace(".jpg", "")
+        node_name = nodename[-1].replace(".png", "")
+        km_image.setName(node_name)
+        
+        print("Created Karma "+node_name)
+        
+
+    
+    #create karma properties
+    km_properties = hou.node(km_path).createNode("kma_material_properties")
+    km_output.setInput(2, km_properties, 0)
+    km_output.parm("name1").set("surface")        
+    km_output.parm("name2").set("displacement")
+    
+    #nicely layout karma nodes
+    km.layoutChildren(horizontal_spacing = 2.0, vertical_spacing = 2.0) 
+    
+######END KARMA SETUP#######
+
+    
+    #create collect node
+    col = hou.node(root).createNode("collect", name)
+    col.setPosition(hou.Vector2(pos[0]+8, pos[1]))
+    if (ar_exists==1):
+        col.setInput(0, ar, 0)
+        col.setInput(1, km, 0)
+    else:
+        col.setInput(0, km, 0)
+    
+#switch update mode to automatic
+hou.ui.setUpdateMode(hou.updateMode.AutoUpdate)
+
+#flag errors if nodes did not contain matx nodes
+if (len(error_mat)>0):
+    error_mat_str = "\n".join(str(element) for element in error_mat)
+    hou.ui.displayMessage("The node(s) below do not contain mtlx image nodes inside. \nThe following materials may be incorrect:\n\n"+error_mat_str, severity=hou.severityType.Warning)
+
+#layout materials
+mtl_lib.layoutChildren()
+mtl_lib.setCurrent(True, clear_all_selected=True)]]></script>
+  </tool>
+
+  <tool name="tex_from_disk_ao" label="Texture from disk AO" icon="hicon:/SVGIcons.index?SHELF_temperature_from_texture.svg">
+    <script scriptType="python"><![CDATA[print("start")
+import os
+import hou
+import re
+disk_textures = []
+materials = []
+
+### RBL TEXT Converter_v001
+###SET DEFAULT VALUES, NO SPACES ALLOWED####
+default_matlib_name = "Converted_Material_Library"
+default_basecol_name = "basecolor"
+default_metallic_name = "metallic"
+default_roughness_name = "roughness"
+default_normal_name = "normal"
+default_displacement_name = "height"
+default_emission_name = "emissive"
+default_opacity_name = "alpha"
+default_transmission_name = "refraction"
+default_displacement_amount = "0"
+default_ao_name = "ao" 
+
+#select folder
+scan_dir = hou.ui.selectFile(file_type=hou.fileType.Directory) 
+print(scan_dir)
+
+#remap input texture names
+user_input_button, user_input_values = hou.ui.readMultiInput(
+        "Set texture ID names. No Spaces Allowed!", ("Add collect node suffix:", "Base Color:", "Metallic:", "Roughness:", "Normal:", "Displacement:", "Emission:", "Opacity:", "Refraction:", "Displacement Amount:", "Ambient Occlution:"),
+    initial_contents=("", default_basecol_name, default_metallic_name, default_roughness_name, default_normal_name, default_displacement_name, default_emission_name, default_opacity_name, default_transmission_name, default_displacement_amount, default_ao_name),
+    title="Remap Input",
+    buttons=("OK", "Cancel"),
+    default_choice=0, close_choice=1,
+)
+
+user_suffix = user_input_values[0]
+user_basecol_name = user_input_values[1]
+user_metallic_name = user_input_values[2]
+user_roughness_name = user_input_values[3]
+user_normal_name = user_input_values[4]
+user_displacement_name = user_input_values[5]
+user_emission_name = user_input_values[6]
+user_opacity_name = user_input_values[7]
+user_transmission_name = user_input_values[8]
+user_displacement_amount = user_input_values[9]
+user_ao_name = user_input_values[10]
+
+if (user_displacement_amount.isnumeric()==False):
+    hou.ui.displayMessage("Displacement Amount must be numeric", severity=hou.severityType.Warning)
+    quit()
+
+#scan folder
+for root, dirs, files in os.walk(scan_dir, topdown=False):
+   for file in files:
+        if file.endswith(user_basecol_name+".jpg") or file.endswith(user_basecol_name+".png") or file.endswith(user_basecol_name+".jpeg"):
+            text_file = (root+"/"+file)
+            
+            #ignore mipmaps
+            if (".rat" in file) or (".tx" in file):
+                print("mipmap found, ignoring "+file)
+            else:
+                disk_textures.append(text_file)
+
+if (len(disk_textures)==0):
+    hou.ui.displayMessage("No basecolor of that name was found on a .jpg, .jpeg, or .png. Note this tool does not support UDIMS", severity=hou.severityType.Warning)
+    quit()
+
+            
+            
+
+
+
+
+print("INITIALIZING MATERIAL BUILDER")
+
+#check if arnold exists
+hpath = hou.houdiniPath()
+ar_exists = 0
+for x in hpath:
+    if ("htoa" in x):
+        ar_exists = 1
+        print("HtoA Found")
+
+        
+#setup arnold colorspace function
+def ar_colorspace_setup(input_var, cf_var, cs_var, input_num, output_num):
+    color_family = input_var.path()+"/color_family"
+    color_space = input_var.path()+"/color_space"
+    single_channel = input_var.path()+"/single_channel"
+    
+    input_var.parm(color_family).set(cf_var)
+    input_var.parm(color_space).set(cs_var)
+    
+    ar_surface.setNamedInput(input_num, ar_image, output_num)
+    
+    if len(output_num)==1:
+        input_var.parm(single_channel).set(1)
+
+        
+#setup Karma colorspace function
+def km_colorspace_setup(input_var, cs_var, input_num, output_num):
+    signature = input_var.path()+"/signature"
+    input_var.parm(signature).set(cs_var)
+    
+    km_surface.setNamedInput(input_num, km_image, output_num)
+ 
+#turn update mode to manual
+hou.ui.setUpdateMode(hou.updateMode.Manual)
+
+#create material library
+new_root = "/stage"
+mtl_lib = hou.node(new_root).createNode("materiallibrary", default_matlib_name)
+mtl_lib.parm("matpathprefix").set("/ASSET/mtl/")    
+mtl_lib_path = mtl_lib.path()
+
+
+
+
+#define textures with name changes
+name_change = []
+
+#loop through each texture 
+for x in disk_textures:
+            
+    
+    root=mtl_lib.path()
+    
+    
+    file_name = x.split("/")
+    mat_name = file_name[-1]
+    parse_name = mat_name.split("_")
+    name = mat_name.replace(("_"+parse_name[-1]), "")
+    usd_name = name.replace("-", "_")
+    
+    if (name!=usd_name):
+        name_change.append(name)
+        
+    
+    disp_amount = user_displacement_amount
+    remap_found = 0
+    
+    current_mat_textures = []
+    
+    for root2, dirs2, files2 in os.walk(scan_dir, topdown=False):
+        for file2 in files2:
+            if (name in file2):
+                file_directory = root2
+                #ignore mipmaps
+                if (".rat" in file2) or (".tx" in file2):
+                    print("mipmap found, ignoring "+file2)
+                else:
+                    current_mat_textures.append(file_directory+"/"+file2)
+                
+    
+    print("Creating "+name)
+###### ARNOLD SETUP #########
+    if (ar_exists==1):
+
+        #create arnold material builder
+        ar = hou.node(root).createNode("arnold_materialbuilder", "arnold_"+usd_name)
+        ar_ao: bool = False # <---- Code inserted by Suhail
+    
+        ar_path = ar.path()+"/"
+        ar_output = hou.node(ar.path()+"/OUT_material")
+        
+        #create standard surface
+        ar_surface = hou.node(ar_path).createNode("standard_surface")
+        ar_surface.parm(ar_path+"standard_surface1/specular_roughness").set(.5)
+        ar_output.setInput(0, ar_surface, 0)
+        ar_image_basecol: hou.Node = None # <---- Code inserted by Suhail
+
+        
+        for text in current_mat_textures:
+            #create image node
+            ar_image = hou.node(ar_path).createNode("image")
+            
+    
+            #set file path
+            ar_fileparm = ar_image.path()+"/filename"
+            ar_image.parm(ar_fileparm).set(text)
+            ar_ao = bool(re.search(r'_ao\.[^.]*$', text)) # <---- Code inserted by Suhail
+            if ar_ao: # <---- Code inserted by Suhail
+                ar_image_ao = ar_image # <---- Code inserted by Suhail        
+            
+            #define initial inputs
+            if (("_")+user_basecol_name) in text:
+                ar_image_basecol = ar_image # <---- Code inserted by Suhail
+                ar_colorspace_setup(ar_image, "Utility", "sRGB - Texture", "base_color", "rgba")
+                
+            if (("_")+user_metallic_name) in text:
+                ar_colorspace_setup(ar_image, "ACES", "ACEScg", "metalness", "r")                  
+    
+            if (("_")+user_roughness_name) in text:
+                ar_colorspace_setup(ar_image, "ACES", "ACEScg", "specular_roughness", "r")
+                
+            if (("_")+user_emission_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "sRGB - Texture", "emission_color", "r")
+                ar_surface.parm(ar_path+"standard_surface1/emission").set(1)
+                
+            if (("_")+user_opacity_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "Raw", "opacity", "r")
+                
+            if (("_")+user_transmission_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "Raw", "transmission", "r")
+            
+            #specialize for normal and for height    
+            if (("_")+user_normal_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "Raw", "normal", "rgba") 
+                
+                #create normal node
+                ar_normal = hou.node(ar_path).createNode("normal_map")
+                
+                #connect inputs and position
+                ar_normal.setNamedInput("input", ar_image, "rgba")
+                ar_surface.setNamedInput("normal", ar_normal, "vector")
+                
+            #specialize for height displacement
+            if (("_")+user_displacement_name) in text:
+                ar_colorspace_setup(ar_image, "ACES", "ACEScg", "diffuse_roughness", "rgba")
+                
+                ar_surface.setInput(2, None)
+                ar_height = hou.node(ar_path).createNode("arnold::multiply", "displacement_amount")
+                
+                ar_height.parm("input2r").set(disp_amount)
+                ar_height.parm("input2g").set(disp_amount)
+                ar_height.parm("input2b").set(disp_amount)
+                
+                #if remapped
+                if (remap_found==1):
+                    ar_height_offset = hou.node(ar_path).createNode("arnold::range", "displacement_remap")
+                    ar_height_offset.parm("output_min").set(low_offset)
+                    ar_height_offset.parm("output_max").set(high_offset)
+                    
+                    ar_height_offset.setNamedInput("input", ar_image, "rgba")
+                    ar_height.setNamedInput("input1", ar_height_offset, "rgb")
+                    ar_output.setNamedInput("displacement", ar_height, "rgb")
+                    
+                else:
+                    ar_height.setNamedInput("input1", ar_image, "rgba")
+                    ar_output.setNamedInput("displacement", ar_height, "rgb")
+
+            if ar_ao: # <---- if block code inserted by Suhail
+                ar_mul_node = hou.node(ar_path).createNode("arnold::multiply", "multiply_ao")
+                ar_mul_node.setInput(0, ar_image_ao,0)
+                ar_mul_node.setInput(1, ar_image_basecol,0)
+                ar_surface.setInput(1, ar_mul_node,0)
+
+                                                                                            
+            #name image nodes
+            nodename = text.split("/")
+            if (".jpg" in nodename[-1]):
+                node_name = nodename[-1].replace(".jpg", "_ar")
+                ar_image.setName(node_name.replace("-", "_"), unique_name=True)
+                print("Created Arnold "+node_name)
+            
+            if (".png" in nodename[-1]):
+                node_name = nodename[-1].replace(".png", "_ar")
+                ar_image.setName(node_name.replace("-", "_"), unique_name=True)
+                print("Created Arnold "+node_name)
+
+            
+        #nicely layout arnold nodes
+        ar.layoutChildren(horizontal_spacing = 2.0, vertical_spacing = 2.0)
+        ar.setMaterialFlag(False)
+       
+######### END ARNOLD SETUP ####################
+
+######### START KARMA SETUP ####################
+    #create Karma material builder
+    km = hou.node(root).createNode("subnet", "karma_"+usd_name)
+
+    km_path = km.path()+"/"
+    km_output = hou.node(km.path()+"/suboutput1")
+    #hou.node(km.path()+"/subinput1").destroy()
+    
+######### START KARMA MTL BUILDER EXTRACT #############
+
+    km.setDebugFlag(False)
+    km.setDetailLowFlag(False)
+    km.setDetailMediumFlag(False)
+    km.setDetailHighFlag(True)
+    km.bypass(False)
+    km.setCompressFlag(True)
+    km.hide(False)
+    km.setSelected(True)
+    
+    hou_parm_template_group = hou.ParmTemplateGroup()
+    # Code for parameter template
+    hou_parm_template = hou.FolderParmTemplate("folder1", "Karma Material Builder", folder_type=hou.folderType.Collapsible, default_value=0, ends_tab_group=False)
+    hou_parm_template.setTags({"group_type": "collapsible", "sidefx::shader_isparm": "0"})
+    # Code for parameter template
+    hou_parm_template2 = hou.IntParmTemplate("inherit_ctrl", "Inherit from Class", 1, default_value=([2]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=(["0","1","2"]), menu_labels=(["Never","Always","Material Flag"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.StringParmTemplate("shader_referencetype", "Class Arc", 1, default_value=(["n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r"]), default_expression=(["n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r"]), default_expression_language=([hou.scriptLanguage.Python]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=(["none","reference","inherit","specialize","represent"]), menu_labels=(["None","Reference","Inherit","Specialize","Represent"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+    hou_parm_template2.setTags({"sidefx::shader_isparm": "0", "spare_category": "Shader"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.StringParmTemplate("shader_baseprimpath", "Class Prim Path", 1, default_value=(["/__class_mtl__/`$OS`"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+    hou_parm_template2.setTags({"script_action": "import loputils\nloputils.selectPrimsInParm(kwargs, False)", "script_action_help": "Select a primitive in the Scene Viewer or Scene Graph Tree pane.\nCtrl-click to select using the primitive picker dialog.", "script_action_icon": "BUTTONS_reselect", "sidefx::shader_isparm": "0", "sidefx::usdpathtype": "prim", "spare_category": "Shader"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.SeparatorParmTemplate("separator1")
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.StringParmTemplate("tabmenumask", "Tab Menu Mask", 1, default_value=(["karma USD ^mtlxUsd* ^mtlxramp* ^hmtlxramp* ^hmtlxcubicramp* MaterialX parameter constant collect null genericshader subnet subnetconnector suboutput subinput"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+    hou_parm_template2.setTags({"spare_category": "Tab Menu"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.StringParmTemplate("shader_rendercontextname", "Render Context Name", 1, default_value=(["kma"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+    hou_parm_template2.setTags({"sidefx::shader_isparm": "0", "spare_category": "Shader"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.ToggleParmTemplate("shader_forcechildren", "Force Translation of Children", default_value=True)
+    hou_parm_template2.setTags({"sidefx::shader_isparm": "0", "spare_category": "Shader"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    hou_parm_template_group.append(hou_parm_template)
+    km.setParmTemplateGroup(hou_parm_template_group)
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/folder1 parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("folder1")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set(0)
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/inherit_ctrl parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("inherit_ctrl")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set(2)
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/shader_referencetype parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("shader_referencetype")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set("inherit")
+    hou_parm.setAutoscope(False)
+    
+    # Code for first keyframe.
+    # Code for keyframe.
+    hou_keyframe = hou.StringKeyframe()
+    hou_keyframe.setTime(0)
+    hou_keyframe.setExpression("n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r", hou.exprLanguage.Python)
+    hou_parm.setKeyframe(hou_keyframe)
+    
+    # Code for last keyframe.
+    # Code for keyframe.
+    hou_keyframe = hou.StringKeyframe()
+    hou_keyframe.setTime(0)
+    hou_keyframe.setExpression("n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r", hou.exprLanguage.Python)
+    hou_parm.setKeyframe(hou_keyframe)
+    
+    # Code for keyframe.
+    hou_keyframe = hou.StringKeyframe()
+    hou_keyframe.setTime(0)
+    hou_keyframe.setExpression("n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r", hou.exprLanguage.Python)
+    hou_parm.setKeyframe(hou_keyframe)
+    
+    # Code for keyframe.
+    hou_keyframe = hou.StringKeyframe()
+    hou_keyframe.setTime(0)
+    hou_keyframe.setExpression("n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r", hou.exprLanguage.Python)
+    hou_parm.setKeyframe(hou_keyframe)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/shader_baseprimpath parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("shader_baseprimpath")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set("/__class_mtl__/`$OS`")
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/tabmenumask parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("tabmenumask")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set("karma USD ^mtlxUsd* ^mtlxramp* ^hmtlxramp* ^hmtlxcubicramp* MaterialX parameter constant collect null genericshader subnet subnetconnector suboutput subinput")
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/shader_rendercontextname parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("shader_rendercontextname")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set("kma")
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/shader_forcechildren parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("shader_forcechildren")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set(1)
+    hou_parm.setAutoscope(False)
+    
+    
+    km.setExpressionLanguage(hou.exprLanguage.Hscript)
+    
+    if hasattr(km, "syncNodeVersionIfNeeded"):
+        km.syncNodeVersionIfNeeded("20.0.653")
+####### END KARMA BUILDER EXTRACT#########            
+    
+    #create standard surface
+    km_surface = hou.node(km_path).createNode("mtlxstandard_surface")
+    km_ao: bool = False  # <---- Code inserted by Suhail
+    km_image_basecol: hou.Node = None # <---- Code inserted by Suhail
+    km_image_ao: hou.Node = None  # <---- Code inserted by Suhail
+
+    
+    km_output.setInput(0, km_surface, 0)
+    has_disp = 0
+    
+    for text in current_mat_textures:
+        #create image node
+        km_image = hou.node(km_path).createNode("mtlximage")
+        
+
+        #set file path
+        km_fileparm = km_image.path()+"/file"
+        km_image.parm(km_fileparm).set(text)
+        km_ao = bool(re.search(r'_ao\.[^.]*$', text)) # <---- Code inserted by Suhail
+        if km_ao: # <---- Code inserted by Suhail 
+            km_image_ao = km_image # <---- Code inserted by Suhail
+
+        
+        #define initial inputs
+        if (("_")+user_basecol_name) in text:
+            km_image_basecol = km_image
+            km_colorspace_setup(km_image, "color3", "base_color", "out")
+            
+        if (("_")+user_metallic_name) in text:
+            km_colorspace_setup(km_image, "default", "metalness", "out")                  
+
+        if (("_")+user_roughness_name) in text:
+            km_colorspace_setup(km_image, "default", "specular_roughness", "out")
+            
+        if (("_")+user_emission_name) in text:
+            km_colorspace_setup(km_image, "color3", "emission_color", "out")
+            km_surface.parm(km_path+"mtlxstandard_surface1/emission").set(1)
+            
+        if (("_")+user_opacity_name) in text:
+            km_colorspace_setup(km_image, "default", "opacity", "out")
+            
+        if (("_")+user_transmission_name) in text:
+            km_colorspace_setup(km_image, "default", "transmission", "out")
+        
+        #specialize for normal and for height    
+        if (("_")+user_normal_name) in text:
+            km_colorspace_setup(km_image, "vector3", "normal", "out") 
+            
+            #create normal node
+            km_normal = hou.node(km_path).createNode("mtlxnormalmap")
+            
+            #connect inputs and position
+            km_normal.setNamedInput("in", km_image, "out")
+            km_surface.setNamedInput("normal", km_normal, "out")
+            
+        #specialize for height displacement
+        if (("_")+user_displacement_name) in text:
+            km_colorspace_setup(km_image, "default", "diffuse_roughness", "out")
+            has_disp = 1
+            
+            #create displacement node and set scale
+            km_surface.setInput(2, None)
+            km_height = hou.node(km_path).createNode("mtlxdisplacement")
+            km_height.parm("scale").set(disp_amount)
+            
+            if (remap_found==1):
+                #create offset node set range
+                km_height_offset = hou.node(km_path).createNode("mtlxremap")
+                km_height_offset.parm("outlow").set(low_offset)
+                km_height_offset.parm("outhigh").set(high_offset)
+                
+                #connect nodes
+                km_height_offset.setNamedInput("in", km_image, "out")
+                km_height.setNamedInput("displacement", km_height_offset, "out")
+                km_output.setInput(1, km_height, 0)
+                
+            else:
+                km_height.setNamedInput("displacement", km_image, "out")
+                km_output.setInput(1, km_height, 0)
+                
+        if km_ao: # <---- if block code inserted by Suhail
+            km_mul_node = hou.node(km_path).createNode("mtlxmultiply", "multiply_ao")
+            km_mul_node.parm('signature').set('color3')
+            km_mul_node.setInput(0, km_image_ao,0)
+            km_mul_node.setInput(1, km_image_basecol,0)
+            km_surface.setInput(1, km_mul_node,0)
+
+
+        
+        #name image nodes
+        nodename = text.split("/")
+        if (".jpg" in nodename[-1]):
+            node_name = nodename[-1].replace(".jpg", "_km")
+            km_image.setName(node_name.replace("-", "_"), unique_name=True)
+            print("Created Karma "+node_name)
+        
+        if (".png" in nodename[-1]):
+            node_name = nodename[-1].replace(".png", "_km")
+            km_image.setName(node_name.replace("-", "_"), unique_name=True)
+            print("Created Karma "+node_name)
+
+
+    
+    #create karma properties
+    km_properties = hou.node(km_path).createNode("kma_material_properties")
+    km_output.setInput(2, km_properties, 0)
+    km_output.parm("name1").set("surface")        
+    km_output.parm("name2").set("displacement")
+    
+    #nicely layout karma nodes
+    km.layoutChildren(horizontal_spacing = 2.0, vertical_spacing = 2.0) 
+    
+######END KARMA SETUP#######
+
+    
+    #create collect node
+    if (user_suffix!=""):
+        col = hou.node(root).createNode("collect", (usd_name+"_"+user_suffix))
+    else:
+        col = hou.node(root).createNode("collect", usd_name)
+    if (ar_exists==1):
+        col.setInput(0, ar, 0)
+        col.setInput(1, km, 0)
+        col.setInput(2, km, 1)
+        if (has_disp==1):
+            col.setInput(2, km, 1)
+            col.setInput(3, km, 2)
+    else:
+        col.setInput(0, km, 0)
+        col.setInput(1, km, 1)
+        if (has_disp==1):
+            col.setInput(1, km, 1)
+            col.setInput(2, km, 2)
+    
+#switch update mode to automatic
+hou.ui.setUpdateMode(hou.updateMode.AutoUpdate)
+
+ #flag errors if nodes did not contain matx nodes
+if (len(name_change)>0):
+    error_mat_str = "\n".join(str(element) for element in name_change)
+    hou.ui.displayMessage("The materials below had a '-' in the file name. \nThis has been changed changed to an '_' for USD naming standards. \nBe aware auto naming may break with the following materials:\n\n"+error_mat_str, severity=hou.severityType.Warning)
+
+#layout materials
+mtl_lib.layoutChildren()
+mtl_lib.setCurrent(True, clear_all_selected=True)
+
+]]></script>
+  </tool>
+
+  <tool name="tex_from_disk0" label="Texture from Disk" icon="hicon:/SVGIcons.index?SHELF_temperature_from_texture.svg">
+    <script scriptType="python"><![CDATA[print("start")
+import os
+import hou
+disk_textures = []
+materials = []
+
+### RBL TEXT Converter_v001
+###SET DEFAULT VALUES, NO SPACES ALLOWED####
+default_matlib_name = "Converted_Material_Library"
+default_basecol_name = "color"
+default_metallic_name = "metal"
+default_roughness_name = "rough"
+default_normal_name = "normal"
+default_displacement_name = "height"
+default_emission_name = "emission"
+default_opacity_name = "alpha"
+default_transmission_name = "refraction"
+default_displacement_amount = "0"
+
+#select folder
+scan_dir = hou.ui.selectFile(file_type=hou.fileType.Directory) 
+print(scan_dir)
+
+#remap input texture names
+user_input_button, user_input_values = hou.ui.readMultiInput(
+    "Set texture ID names. No Spaces Allowed!", ("Add collect node suffix:", "Base Color:", "Metallic:", "Roughness:", "Normal:", "Displacement:", "Emission:", "Opacity:", "Refraction:", "Displacement Amount:"),
+    initial_contents=("", default_basecol_name, default_metallic_name, default_roughness_name, default_normal_name, default_displacement_name, default_emission_name, default_opacity_name, default_transmission_name, default_displacement_amount),
+    title="Remap Input",
+    buttons=("OK", "Cancel"),
+    default_choice=0, close_choice=1,
+)
+
+user_suffix = user_input_values[0]
+user_basecol_name = user_input_values[1]
+user_metallic_name = user_input_values[2]
+user_roughness_name = user_input_values[3]
+user_normal_name = user_input_values[4]
+user_displacement_name = user_input_values[5]
+user_emission_name = user_input_values[6]
+user_opacity_name = user_input_values[7]
+user_transmission_name = user_input_values[8]
+user_displacement_amount = user_input_values[9]
+
+if (user_displacement_amount.isnumeric()==False):
+    hou.ui.displayMessage("Displacement Amount must be numeric", severity=hou.severityType.Warning)
+    quit()
+
+#scan folder
+for root, dirs, files in os.walk(scan_dir, topdown=False):
+   for file in files:
+        if file.endswith(user_basecol_name+".jpg") or file.endswith(user_basecol_name+".png") or file.endswith(user_basecol_name+".jpeg"):
+            text_file = (root+"/"+file)
+            
+            #ignore mipmaps
+            if (".rat" in file) or (".tx" in file):
+                print("mipmap found, ignoring "+file)
+            else:
+                disk_textures.append(text_file)
+
+if (len(disk_textures)==0):
+    hou.ui.displayMessage("No basecolor of that name was found on a .jpg, .jpeg, or .png. Note this tool does not support UDIMS", severity=hou.severityType.Warning)
+    quit()
+
+            
+            
+
+
+
+
+print("INITIALIZING MATERIAL BUILDER")
+
+#check if arnold exists
+hpath = hou.houdiniPath()
+ar_exists = 0
+for x in hpath:
+    if ("htoa" in x):
+        ar_exists = 1
+        print("HtoA Found")
+
+        
+#setup arnold colorspace function
+def ar_colorspace_setup(input_var, cf_var, cs_var, input_num, output_num):
+    color_family = input_var.path()+"/color_family"
+    color_space = input_var.path()+"/color_space"
+    single_channel = input_var.path()+"/single_channel"
+    
+    input_var.parm(color_family).set(cf_var)
+    input_var.parm(color_space).set(cs_var)
+    
+    ar_surface.setNamedInput(input_num, ar_image, output_num)
+    
+    if len(output_num)==1:
+        input_var.parm(single_channel).set(1)
+
+        
+#setup Karma colorspace function
+def km_colorspace_setup(input_var, cs_var, input_num, output_num):
+    signature = input_var.path()+"/signature"
+    input_var.parm(signature).set(cs_var)
+    
+    km_surface.setNamedInput(input_num, km_image, output_num)
+ 
+#turn update mode to manual
+hou.ui.setUpdateMode(hou.updateMode.Manual)
+
+#create material library
+new_root = "/stage"
+mtl_lib = hou.node(new_root).createNode("materiallibrary", default_matlib_name)
+mtl_lib.parm("matpathprefix").set("/ASSET/mtl/")    
+mtl_lib_path = mtl_lib.path()
+
+
+
+
+#define textures with name changes
+name_change = []
+
+#loop through each texture 
+for x in disk_textures:
+            
+    
+    root=mtl_lib.path()
+    
+    
+    file_name = x.split("/")
+    mat_name = file_name[-1]
+    parse_name = mat_name.split("_")
+    name = mat_name.replace(("_"+parse_name[-1]), "")
+    usd_name = name.replace("-", "_")
+    
+    if (name!=usd_name):
+        name_change.append(name)
+        
+    
+    disp_amount = user_displacement_amount
+    remap_found = 0
+    
+    current_mat_textures = []
+    
+    for root2, dirs2, files2 in os.walk(scan_dir, topdown=False):
+        for file2 in files2:
+            if (name in file2):
+                file_directory = root2
+                #ignore mipmaps
+                if (".rat" in file2) or (".tx" in file2):
+                    print("mipmap found, ignoring "+file2)
+                else:
+                    current_mat_textures.append(file_directory+"/"+file2)
+                
+    
+    print("Creating "+name)
+###### ARNOLD SETUP #########
+    if (ar_exists==1):
+
+        #create arnold material builder
+        ar = hou.node(root).createNode("arnold_materialbuilder", "arnold_"+usd_name)
+    
+        ar_path = ar.path()+"/"
+        ar_output = hou.node(ar.path()+"/OUT_material")
+        
+        #create standard surface
+        ar_surface = hou.node(ar_path).createNode("standard_surface")
+        ar_surface.parm(ar_path+"standard_surface1/specular_roughness").set(.5)
+        ar_output.setInput(0, ar_surface, 0)
+        
+        for text in current_mat_textures:
+            #create image node
+            ar_image = hou.node(ar_path).createNode("image")
+            
+    
+            #set file path
+            ar_fileparm = ar_image.path()+"/filename"
+            ar_image.parm(ar_fileparm).set(text)
+            
+            
+            #define initial inputs
+            if (("_")+user_basecol_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "sRGB - Texture", "base_color", "rgba")
+                
+            if (("_")+user_metallic_name) in text:
+                ar_colorspace_setup(ar_image, "ACES", "ACEScg", "metalness", "r")                  
+    
+            if (("_")+user_roughness_name) in text:
+                ar_colorspace_setup(ar_image, "ACES", "ACEScg", "specular_roughness", "r")
+                
+            if (("_")+user_emission_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "sRGB - Texture", "emission_color", "r")
+                ar_surface.parm(ar_path+"standard_surface1/emission").set(1)
+                
+            if (("_")+user_opacity_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "Raw", "opacity", "r")
+                
+            if (("_")+user_transmission_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "Raw", "transmission", "r")
+            
+            #specialize for normal and for height    
+            if (("_")+user_normal_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "Raw", "normal", "rgba") 
+                
+                #create normal node
+                ar_normal = hou.node(ar_path).createNode("normal_map")
+                
+                #connect inputs and position
+                ar_normal.setNamedInput("input", ar_image, "rgba")
+                ar_surface.setNamedInput("normal", ar_normal, "vector")
+                
+            #specialize for height displacement
+            if (("_")+user_displacement_name) in text:
+                ar_colorspace_setup(ar_image, "ACES", "ACEScg", "diffuse_roughness", "rgba")
+                
+                ar_surface.setInput(2, None)
+                ar_height = hou.node(ar_path).createNode("arnold::multiply", "displacement_amount")
+                
+                ar_height.parm("input2r").set(disp_amount)
+                ar_height.parm("input2g").set(disp_amount)
+                ar_height.parm("input2b").set(disp_amount)
+                
+                #if remapped
+                if (remap_found==1):
+                    ar_height_offset = hou.node(ar_path).createNode("arnold::range", "displacement_remap")
+                    ar_height_offset.parm("output_min").set(low_offset)
+                    ar_height_offset.parm("output_max").set(high_offset)
+                    
+                    ar_height_offset.setNamedInput("input", ar_image, "rgba")
+                    ar_height.setNamedInput("input1", ar_height_offset, "rgb")
+                    ar_output.setNamedInput("displacement", ar_height, "rgb")
+                    
+                else:
+                    ar_height.setNamedInput("input1", ar_image, "rgba")
+                    ar_output.setNamedInput("displacement", ar_height, "rgb")
+                                                                                            
+            #name image nodes
+            nodename = text.split("/")
+            if (".jpg" in nodename[-1]):
+                node_name = nodename[-1].replace(".jpg", "_ar")
+                ar_image.setName(node_name.replace("-", "_"), unique_name=True)
+                print("Created Arnold "+node_name)
+            
+            if (".png" in nodename[-1]):
+                node_name = nodename[-1].replace(".png", "_ar")
+                ar_image.setName(node_name.replace("-", "_"), unique_name=True)
+                print("Created Arnold "+node_name)
+            
+            
+            
+        #nicely layout arnold nodes
+        ar.layoutChildren(horizontal_spacing = 2.0, vertical_spacing = 2.0)
+        ar.setMaterialFlag(False)
+       
+######### END ARNOLD SETUP ####################
+
+######### START KARMA SETUP ####################
+    #create Karma material builder
+    km = hou.node(root).createNode("subnet", "karma_"+usd_name)
+
+    km_path = km.path()+"/"
+    km_output = hou.node(km.path()+"/suboutput1")
+    #hou.node(km.path()+"/subinput1").destroy()
+    
+######### START KARMA MTL BUILDER EXTRACT #############
+
+    km.setDebugFlag(False)
+    km.setDetailLowFlag(False)
+    km.setDetailMediumFlag(False)
+    km.setDetailHighFlag(True)
+    km.bypass(False)
+    km.setCompressFlag(True)
+    km.hide(False)
+    km.setSelected(True)
+    
+    hou_parm_template_group = hou.ParmTemplateGroup()
+    # Code for parameter template
+    hou_parm_template = hou.FolderParmTemplate("folder1", "Karma Material Builder", folder_type=hou.folderType.Collapsible, default_value=0, ends_tab_group=False)
+    hou_parm_template.setTags({"group_type": "collapsible", "sidefx::shader_isparm": "0"})
+    # Code for parameter template
+    hou_parm_template2 = hou.IntParmTemplate("inherit_ctrl", "Inherit from Class", 1, default_value=([2]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=(["0","1","2"]), menu_labels=(["Never","Always","Material Flag"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.StringParmTemplate("shader_referencetype", "Class Arc", 1, default_value=(["n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r"]), default_expression=(["n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r"]), default_expression_language=([hou.scriptLanguage.Python]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=(["none","reference","inherit","specialize","represent"]), menu_labels=(["None","Reference","Inherit","Specialize","Represent"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+    hou_parm_template2.setTags({"sidefx::shader_isparm": "0", "spare_category": "Shader"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.StringParmTemplate("shader_baseprimpath", "Class Prim Path", 1, default_value=(["/__class_mtl__/`$OS`"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+    hou_parm_template2.setTags({"script_action": "import loputils\nloputils.selectPrimsInParm(kwargs, False)", "script_action_help": "Select a primitive in the Scene Viewer or Scene Graph Tree pane.\nCtrl-click to select using the primitive picker dialog.", "script_action_icon": "BUTTONS_reselect", "sidefx::shader_isparm": "0", "sidefx::usdpathtype": "prim", "spare_category": "Shader"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.SeparatorParmTemplate("separator1")
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.StringParmTemplate("tabmenumask", "Tab Menu Mask", 1, default_value=(["karma USD ^mtlxUsd* ^mtlxramp* ^hmtlxramp* ^hmtlxcubicramp* MaterialX parameter constant collect null genericshader subnet subnetconnector suboutput subinput"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+    hou_parm_template2.setTags({"spare_category": "Tab Menu"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.StringParmTemplate("shader_rendercontextname", "Render Context Name", 1, default_value=(["kma"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+    hou_parm_template2.setTags({"sidefx::shader_isparm": "0", "spare_category": "Shader"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.ToggleParmTemplate("shader_forcechildren", "Force Translation of Children", default_value=True)
+    hou_parm_template2.setTags({"sidefx::shader_isparm": "0", "spare_category": "Shader"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    hou_parm_template_group.append(hou_parm_template)
+    km.setParmTemplateGroup(hou_parm_template_group)
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/folder1 parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("folder1")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set(0)
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/inherit_ctrl parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("inherit_ctrl")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set(2)
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/shader_referencetype parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("shader_referencetype")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set("inherit")
+    hou_parm.setAutoscope(False)
+    
+    # Code for first keyframe.
+    # Code for keyframe.
+    hou_keyframe = hou.StringKeyframe()
+    hou_keyframe.setTime(0)
+    hou_keyframe.setExpression("n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r", hou.exprLanguage.Python)
+    hou_parm.setKeyframe(hou_keyframe)
+    
+    # Code for last keyframe.
+    # Code for keyframe.
+    hou_keyframe = hou.StringKeyframe()
+    hou_keyframe.setTime(0)
+    hou_keyframe.setExpression("n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r", hou.exprLanguage.Python)
+    hou_parm.setKeyframe(hou_keyframe)
+    
+    # Code for keyframe.
+    hou_keyframe = hou.StringKeyframe()
+    hou_keyframe.setTime(0)
+    hou_keyframe.setExpression("n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r", hou.exprLanguage.Python)
+    hou_parm.setKeyframe(hou_keyframe)
+    
+    # Code for keyframe.
+    hou_keyframe = hou.StringKeyframe()
+    hou_keyframe.setTime(0)
+    hou_keyframe.setExpression("n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r", hou.exprLanguage.Python)
+    hou_parm.setKeyframe(hou_keyframe)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/shader_baseprimpath parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("shader_baseprimpath")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set("/__class_mtl__/`$OS`")
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/tabmenumask parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("tabmenumask")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set("karma USD ^mtlxUsd* ^mtlxramp* ^hmtlxramp* ^hmtlxcubicramp* MaterialX parameter constant collect null genericshader subnet subnetconnector suboutput subinput")
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/shader_rendercontextname parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("shader_rendercontextname")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set("kma")
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/shader_forcechildren parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("shader_forcechildren")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set(1)
+    hou_parm.setAutoscope(False)
+    
+    
+    km.setExpressionLanguage(hou.exprLanguage.Hscript)
+    
+    if hasattr(km, "syncNodeVersionIfNeeded"):
+        km.syncNodeVersionIfNeeded("20.0.653")
+####### END KARMA BUILDER EXTRACT#########            
+    
+    #create standard surface
+    km_surface = hou.node(km_path).createNode("mtlxstandard_surface")
+    
+    km_output.setInput(0, km_surface, 0)
+    has_disp = 0
+    
+    for text in current_mat_textures:
+        #create image node
+        km_image = hou.node(km_path).createNode("mtlximage")
+        
+
+        #set file path
+        km_fileparm = km_image.path()+"/file"
+        km_image.parm(km_fileparm).set(text)
+
+        
+        #define initial inputs
+        if (("_")+user_basecol_name) in text:
+            km_colorspace_setup(km_image, "color3", "base_color", "out")
+            
+        if (("_")+user_metallic_name) in text:
+            km_colorspace_setup(km_image, "default", "metalness", "out")                  
+
+        if (("_")+user_roughness_name) in text:
+            km_colorspace_setup(km_image, "default", "specular_roughness", "out")
+            
+        if (("_")+user_emission_name) in text:
+            km_colorspace_setup(km_image, "color3", "emission_color", "out")
+            km_surface.parm(km_path+"mtlxstandard_surface1/emission").set(1)
+            
+        if (("_")+user_opacity_name) in text:
+            km_colorspace_setup(km_image, "default", "opacity", "out")
+            
+        if (("_")+user_transmission_name) in text:
+            km_colorspace_setup(km_image, "default", "transmission", "out")
+        
+        #specialize for normal and for height    
+        if (("_")+user_normal_name) in text:
+            km_colorspace_setup(km_image, "vector3", "normal", "out") 
+            
+            #create normal node
+            km_normal = hou.node(km_path).createNode("mtlxnormalmap")
+            
+            #connect inputs and position
+            km_normal.setNamedInput("in", km_image, "out")
+            km_surface.setNamedInput("normal", km_normal, "out")
+            
+        #specialize for height displacement
+        if (("_")+user_displacement_name) in text:
+            km_colorspace_setup(km_image, "default", "diffuse_roughness", "out")
+            has_disp = 1
+            
+            #create displacement node and set scale
+            km_surface.setInput(2, None)
+            km_height = hou.node(km_path).createNode("mtlxdisplacement")
+            km_height.parm("scale").set(disp_amount)
+            
+            if (remap_found==1):
+                #create offset node set range
+                km_height_offset = hou.node(km_path).createNode("mtlxremap")
+                km_height_offset.parm("outlow").set(low_offset)
+                km_height_offset.parm("outhigh").set(high_offset)
+                
+                #connect nodes
+                km_height_offset.setNamedInput("in", km_image, "out")
+                km_height.setNamedInput("displacement", km_height_offset, "out")
+                km_output.setInput(1, km_height, 0)
+                
+            else:
+                km_height.setNamedInput("displacement", km_image, "out")
+                km_output.setInput(1, km_height, 0)
+                
+            
+
+        
+        #name image nodes
+        nodename = text.split("/")
+        if (".jpg" in nodename[-1]):
+            node_name = nodename[-1].replace(".jpg", "_km")
+            km_image.setName(node_name.replace("-", "_"), unique_name=True)
+            print("Created Karma "+node_name)
+        
+        if (".png" in nodename[-1]):
+            node_name = nodename[-1].replace(".png", "_km")
+            km_image.setName(node_name.replace("-", "_"), unique_name=True)
+            print("Created Karma "+node_name)
+        
+
+    
+    #create karma properties
+    km_properties = hou.node(km_path).createNode("kma_material_properties")
+    km_output.setInput(2, km_properties, 0)
+    km_output.parm("name1").set("surface")        
+    km_output.parm("name2").set("displacement")
+    
+    #nicely layout karma nodes
+    km.layoutChildren(horizontal_spacing = 2.0, vertical_spacing = 2.0) 
+    
+######END KARMA SETUP#######
+
+    
+    #create collect node
+    if (user_suffix!=""):
+        col = hou.node(root).createNode("collect", (usd_name+"_"+user_suffix))
+    else:
+        col = hou.node(root).createNode("collect", usd_name)
+    if (ar_exists==1):
+        col.setInput(0, ar, 0)
+        col.setInput(1, km, 0)
+        col.setInput(2, km, 1)
+        if (has_disp==1):
+            col.setInput(2, km, 1)
+            col.setInput(3, km, 2)
+    else:
+        col.setInput(0, km, 0)
+        col.setInput(1, km, 1)
+        if (has_disp==1):
+            col.setInput(1, km, 1)
+            col.setInput(2, km, 2)
+    
+#switch update mode to automatic
+hou.ui.setUpdateMode(hou.updateMode.AutoUpdate)
+
+ #flag errors if nodes did not contain matx nodes
+if (len(name_change)>0):
+    error_mat_str = "\n".join(str(element) for element in name_change)
+    hou.ui.displayMessage("The materials below had a '-' in the file name. \nThis has been changed changed to an '_' for USD naming standards. \nBe aware auto naming may break with the following materials:\n\n"+error_mat_str, severity=hou.severityType.Warning)
+
+#layout materials
+mtl_lib.layoutChildren()
+mtl_lib.setCurrent(True, clear_all_selected=True)
+]]></script>
+  </tool>
+
+  <tool name="triplaner_from_disk" label="Triplaner from Disk" icon="hicon:/SVGIcons.index?VOP_uvtriplanarproject.svg">
+    <script scriptType="python"><![CDATA[### RBL TRIPLANAR Converter_v001.1
+##v001.1 changelog
+##      - fixed initial filename search to use user input instead of default
+
+print("start")
+import os
+import hou
+disk_textures = []
+materials = []
+
+#select folder
+scan_dir = hou.ui.selectFile(file_type=hou.fileType.Directory) 
+print(scan_dir)
+
+
+###SET DEFAULT VALUES, NO SPACES ALLOWED####
+default_matlib_name = "Triplanar_Material_Library"
+default_basecol_name = "baseColor"
+default_metallic_name = "metal"
+default_roughness_name = "roughness"
+default_normal_name = "normal"
+default_displacement_name = "height"
+default_emission_name = "emission"
+default_opacity_name = "alpha"
+default_transmission_name = "refraction"
+default_displacement_amount = "0"
+
+#remap input texture names
+user_input_button, user_input_values = hou.ui.readMultiInput(
+    "Set texture ID names. No Spaces Allowed!", ("Add collect node suffix:", "Base Color:", "Metallic:", "Roughness:", "Normal:", "Displacement:", "Emission:", "Opacity:", "Refraction:", "Displacement Amount:"),
+    initial_contents=("", default_basecol_name, default_metallic_name, default_roughness_name, default_normal_name, default_displacement_name, default_emission_name, default_opacity_name, default_transmission_name, default_displacement_amount),
+    title="Remap Input",
+    buttons=("OK", "Cancel"),
+    default_choice=0, close_choice=1,
+)
+
+#scan folder
+for root, dirs, files in os.walk(scan_dir, topdown=False):
+   for file in files:
+        if file.endswith(user_input_values[1]+".jpg") or file.endswith(user_input_values[1]+".jpeg") or file.endswith(user_input_values[1]+".png") or file.endswith(user_input_values[1]+".exr"):
+            text_file = (root+"/"+file)
+        
+            #ignore mipmaps
+            if (".rat" in file) or (".tx" in file):
+                print("mipmap found, ignoring "+file)
+            else:
+                disk_textures.append(text_file)            
+
+if (len(disk_textures)==0):
+    hou.ui.displayMessage("No basecolor of that name was found on a .jpg, .jpeg, or .png. Note this tool does not support UDIMS", severity=hou.severityType.Warning)
+    quit()
+    
+print("INITIALIZING MATERIAL BUILDER")
+
+#check if arnold exists
+hpath = hou.houdiniPath()
+ar_exists = 0
+for x in hpath:
+    if ("htoa" in x):
+        ar_exists = 1
+        print("HtoA Found")
+
+        
+#setup arnold colorspace function
+def ar_colorspace_setup(input_var, cf_var, cs_var, input_num, output_num):
+    color_family = input_var.path()+"/color_family"
+    color_space = input_var.path()+"/color_space"
+    single_channel = input_var.path()+"/single_channel"
+    
+    input_var.parm(color_family).set(cf_var)
+    input_var.parm(color_space).set(cs_var)
+    
+    ar_surface.setNamedInput(input_num, ar_triplanar, "rgb")
+    ar_triplanar.setNamedInput("input", ar_image, output_num)
+    
+    if len(output_num)==1:
+        input_var.parm(single_channel).set(1)
+
+        
+#setup Karma colorspace function
+def km_colorspace_setup(input_var, cs_var, input_num, output_num):
+    signature = input_var.path()+"/signature"
+    input_var.parm(signature).set(cs_var)
+    
+    km_surface.setNamedInput(input_num, km_image, output_num)
+ 
+#turn update mode to manual
+hou.ui.setUpdateMode(hou.updateMode.Manual)
+
+#create material library
+new_root = "/stage"
+mtl_lib = hou.node(new_root).createNode("materiallibrary", default_matlib_name)
+mtl_lib.parm("matpathprefix").set("/ASSET/mtl/")    
+mtl_lib_path = mtl_lib.path()
+
+
+user_suffix = user_input_values[0]
+user_basecol_name = user_input_values[1]
+user_metallic_name = user_input_values[2]
+user_roughness_name = user_input_values[3]
+user_normal_name = user_input_values[4]
+user_displacement_name = user_input_values[5]
+user_emission_name = user_input_values[6]
+user_opacity_name = user_input_values[7]
+user_transmission_name = user_input_values[8]
+user_displacement_amount = user_input_values[9]
+
+if (user_displacement_amount.isnumeric()==False):
+    hou.ui.displayMessage("Displacement Amount must be numeric", severity=hou.severityType.Warning)
+    quit()
+
+#define textures with name changes
+name_change = []
+needs_pref = []
+
+#loop through each texture 
+for x in disk_textures:
+            
+    
+    root=mtl_lib.path()
+    
+    #set initial parms
+    file_name = x.split("/")
+    mat_name = file_name[-1]
+    parse_name = mat_name.split("_")
+    name = mat_name.replace(("_"+parse_name[-1]), "")
+    usd_name = name.replace("-", "_")
+    
+    #create collect node
+    if (user_suffix!=""):
+        col = hou.node(root).createNode("collect", (usd_name+"_"+user_suffix))
+    else:
+        col = hou.node(root).createNode("collect", usd_name)
+        
+    #set triplanar parm on collect node
+    parms = col.parmTemplateGroup()
+    size_parm = hou.FloatParmTemplate("size", "Triplanar Size", 1, default_value=[1])
+    cell_blend_parm = hou.FloatParmTemplate("cell_blend", "Cell Blend Amount", 1, default_value=[.1], min=0.0, max=1.0)
+    tri_blend_parm = hou.FloatParmTemplate("tri_blend", "Triplanar Blend Amount", 1, default_value=[.1], min=0.0, max=1.0)
+    rot_parm = hou.FloatParmTemplate("rot", "Random Rotation", 1, default_value=[0])
+    cell_toggle_parm = hou.ToggleParmTemplate("ar_cell_toggle", "Arnold Cell Toggle", default_value=False)
+    parms.append(size_parm)
+    parms.append(cell_blend_parm)
+    parms.append(tri_blend_parm)
+    parms.append(rot_parm)
+    parms.append(cell_toggle_parm)
+    col.setParmTemplateGroup(parms)
+    
+
+    
+    if (name!=usd_name):
+        name_change.append(name)
+        
+    
+    disp_amount = int(user_displacement_amount)
+    remap_found = 0
+    triplanar_size_expr = "ch('../../"+col.name()+"/size')"
+    triplanar_blend_expr = "ch('../../"+col.name()+"/tri_blend')"
+    triplanar_cell_expr = "ch('../../"+col.name()+"/cell_blend')"
+    triplanar_rot_expr = "ch('../../"+col.name()+"/rot')"
+    triplanar_cell_toggle_expr = "ch('../../"+col.name()+"/ar_cell_toggle')"
+    
+    
+    current_mat_textures = []
+    enable_rest = 0
+
+    for root2, dirs2, files2 in os.walk(scan_dir, topdown=False):
+        for file2 in files2:
+            if (name in file2):
+                file_directory = root2
+                        #ignore mipmaps
+                if (".rat" in file2) or (".tx" in file2):
+                    print("mipmap found, ignoring "+file2)
+                else:
+                    current_mat_textures.append(file_directory+"/"+file2)
+                    print(file_directory+"/"+file2)
+                    if (user_displacement_name in file2):
+                        enable_rest = 1
+                
+    print(name + "____rest val= "+str(enable_rest))
+    print("Creating "+name)
+
+###### ARNOLD SETUP #########
+    if (ar_exists==1):
+
+        #create arnold material builder
+        ar = hou.node(root).createNode("arnold_materialbuilder", "arnold_"+usd_name)
+    
+        ar_path = ar.path()+"/"
+        ar_output = hou.node(ar.path()+"/OUT_material")
+        
+        #create standard surface
+        ar_surface = hou.node(ar_path).createNode("standard_surface")
+        ar_surface.parm(ar_path+"standard_surface1/specular_roughness").set(.5)
+        ar_output.setInput(0, ar_surface, 0)
+        
+        for text in current_mat_textures:
+            #create image node and triplanar
+            ar_image = hou.node(ar_path).createNode("image")
+            ar_triplanar = hou.node(ar_path).createNode("arnold::triplanar")
+            ar_triplanar.parm("scalex").setExpression(triplanar_size_expr)
+            ar_triplanar.parm("scaley").setExpression(triplanar_size_expr)
+            ar_triplanar.parm("scalez").setExpression(triplanar_size_expr)
+            ar_triplanar.parm("blend").setExpression(triplanar_blend_expr)
+            ar_triplanar.parm("cell_blend").setExpression(triplanar_cell_expr+"/5")
+            ar_triplanar.parm("cell_rotate").setExpression(triplanar_rot_expr)
+            ar_triplanar.parm("cell_rotate").setExpression(triplanar_rot_expr)
+            ar_triplanar.parm("cell").setExpression(triplanar_cell_toggle_expr)
+
+            #set to pref
+            if (enable_rest==1):
+                ar_triplanar.parm("coord_space").set("Pref")
+            
+    
+            #set file path
+            ar_fileparm = ar_image.path()+"/filename"
+            ar_image.parm(ar_fileparm).set(text)
+            
+            
+            #define initial inputs
+            if (("_")+user_basecol_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "sRGB - Texture", "base_color", "rgba")
+                
+            if (("_")+user_metallic_name) in text:
+                ar_colorspace_setup(ar_image, "ACES", "ACEScg", "metalness", "r")                  
+    
+            if (("_")+user_roughness_name) in text:
+                ar_colorspace_setup(ar_image, "ACES", "ACEScg", "specular_roughness", "r")
+                
+            if (("_")+user_emission_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "sRGB - Texture", "emission_color", "r")
+                ar_surface.parm(ar_path+"standard_surface1/emission").set(1)
+                
+            if (("_")+user_opacity_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "Raw", "opacity", "r")
+                
+            if (("_")+user_transmission_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "Raw", "transmission", "r")
+            
+            #specialize for normal and for height    
+            if (("_")+user_normal_name) in text:
+                ar_colorspace_setup(ar_image, "Utility", "Raw", "normal", "rgba") 
+                
+                #create normal node
+                ar_normal = hou.node(ar_path).createNode("normal_map")
+                
+                #connect inputs and position
+                ar_normal.setNamedInput("input", ar_triplanar, "rgb")
+                ar_surface.setNamedInput("normal", ar_normal, "vector")
+                
+            #specialize for height displacement
+            if (("_")+user_displacement_name) in text:
+                ar_colorspace_setup(ar_image, "ACES", "ACEScg", "diffuse_roughness", "rgba")
+                
+                ar_surface.setInput(2, None)
+                ar_height = hou.node(ar_path).createNode("arnold::multiply", "displacement_amount")
+                
+                ar_height.parm("input2r").set(disp_amount)
+                ar_height.parm("input2g").set(disp_amount)
+                ar_height.parm("input2b").set(disp_amount)
+                
+                #if remapped
+                if (remap_found==1):
+                    ar_height_offset = hou.node(ar_path).createNode("arnold::range", "displacement_remap")
+                    ar_height_offset.parm("output_min").set(low_offset)
+                    ar_height_offset.parm("output_max").set(high_offset)
+                    
+                    ar_height_offset.setNamedInput("input", ar_image, "rgba")
+                    ar_height.setNamedInput("input1", ar_height_offset, "rgb")
+                    ar_output.setNamedInput("displacement", ar_height, "rgb")
+                    
+                else:
+                    ar_height.setNamedInput("input1", ar_triplanar, "rgb")
+                    ar_output.setNamedInput("displacement", ar_height, "rgb")
+                                                                                            
+            #name image nodes
+            nodename = text.split("/")
+            if (".jpg" in nodename[-1]):
+                node_name = nodename[-1].replace(".jpg", "_ar")
+                ar_image.setName(node_name.replace("-", "_"), unique_name=True)
+                print("Created Arnold "+node_name)
+
+            if (".jpeg" in nodename[-1]):
+                node_name = nodename[-1].replace(".jpeg", "_ar")
+                ar_image.setName(node_name.replace("-", "_"), unique_name=True)
+                print("Created Arnold "+node_name)
+            
+            if (".png" in nodename[-1]):
+                node_name = nodename[-1].replace(".png", "_ar")
+                ar_image.setName(node_name.replace("-", "_"), unique_name=True)
+                print("Created Arnold "+node_name)
+            
+            
+            
+        #nicely layout arnold nodes
+        ar.layoutChildren(horizontal_spacing = 2.0, vertical_spacing = 2.0)
+        ar.setMaterialFlag(False)
+       
+######### END ARNOLD SETUP ####################
+
+######### START KARMA SETUP ####################
+    #create Karma material builder
+    km = hou.node(root).createNode("subnet", "karma_"+usd_name)
+
+    km_path = km.path()+"/"
+    km_output = hou.node(km.path()+"/suboutput1")
+    #hou.node(km.path()+"/subinput1").destroy()
+    
+######### START KARMA MTL BUILDER EXTRACT #############
+
+    km.setDebugFlag(False)
+    km.setDetailLowFlag(False)
+    km.setDetailMediumFlag(False)
+    km.setDetailHighFlag(True)
+    km.bypass(False)
+    km.setCompressFlag(True)
+    km.hide(False)
+    km.setSelected(True)
+    
+    hou_parm_template_group = hou.ParmTemplateGroup()
+    # Code for parameter template
+    hou_parm_template = hou.FolderParmTemplate("folder1", "Karma Material Builder", folder_type=hou.folderType.Collapsible, default_value=0, ends_tab_group=False)
+    hou_parm_template.setTags({"group_type": "collapsible", "sidefx::shader_isparm": "0"})
+    # Code for parameter template
+    hou_parm_template2 = hou.IntParmTemplate("inherit_ctrl", "Inherit from Class", 1, default_value=([2]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=(["0","1","2"]), menu_labels=(["Never","Always","Material Flag"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.StringParmTemplate("shader_referencetype", "Class Arc", 1, default_value=(["n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r"]), default_expression=(["n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r"]), default_expression_language=([hou.scriptLanguage.Python]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=(["none","reference","inherit","specialize","represent"]), menu_labels=(["None","Reference","Inherit","Specialize","Represent"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+    hou_parm_template2.setTags({"sidefx::shader_isparm": "0", "spare_category": "Shader"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.StringParmTemplate("shader_baseprimpath", "Class Prim Path", 1, default_value=(["/__class_mtl__/`$OS`"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+    hou_parm_template2.setTags({"script_action": "import loputils\nloputils.selectPrimsInParm(kwargs, False)", "script_action_help": "Select a primitive in the Scene Viewer or Scene Graph Tree pane.\nCtrl-click to select using the primitive picker dialog.", "script_action_icon": "BUTTONS_reselect", "sidefx::shader_isparm": "0", "sidefx::usdpathtype": "prim", "spare_category": "Shader"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.SeparatorParmTemplate("separator1")
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.StringParmTemplate("tabmenumask", "Tab Menu Mask", 1, default_value=(["karma USD ^mtlxUsd* ^mtlxramp* ^hmtlxramp* ^hmtlxcubicramp* MaterialX parameter constant collect null genericshader subnet subnetconnector suboutput subinput"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+    hou_parm_template2.setTags({"spare_category": "Tab Menu"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.StringParmTemplate("shader_rendercontextname", "Render Context Name", 1, default_value=(["kma"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+    hou_parm_template2.setTags({"sidefx::shader_isparm": "0", "spare_category": "Shader"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    # Code for parameter template
+    hou_parm_template2 = hou.ToggleParmTemplate("shader_forcechildren", "Force Translation of Children", default_value=True)
+    hou_parm_template2.setTags({"sidefx::shader_isparm": "0", "spare_category": "Shader"})
+    hou_parm_template.addParmTemplate(hou_parm_template2)
+    hou_parm_template_group.append(hou_parm_template)
+    km.setParmTemplateGroup(hou_parm_template_group)
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/folder1 parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("folder1")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set(0)
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/inherit_ctrl parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("inherit_ctrl")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set(2)
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/shader_referencetype parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("shader_referencetype")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set("inherit")
+    hou_parm.setAutoscope(False)
+    
+    # Code for first keyframe.
+    # Code for keyframe.
+    hou_keyframe = hou.StringKeyframe()
+    hou_keyframe.setTime(0)
+    hou_keyframe.setExpression("n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r", hou.exprLanguage.Python)
+    hou_parm.setKeyframe(hou_keyframe)
+    
+    # Code for last keyframe.
+    # Code for keyframe.
+    hou_keyframe = hou.StringKeyframe()
+    hou_keyframe.setTime(0)
+    hou_keyframe.setExpression("n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r", hou.exprLanguage.Python)
+    hou_parm.setKeyframe(hou_keyframe)
+    
+    # Code for keyframe.
+    hou_keyframe = hou.StringKeyframe()
+    hou_keyframe.setTime(0)
+    hou_keyframe.setExpression("n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r", hou.exprLanguage.Python)
+    hou_parm.setKeyframe(hou_keyframe)
+    
+    # Code for keyframe.
+    hou_keyframe = hou.StringKeyframe()
+    hou_keyframe.setTime(0)
+    hou_keyframe.setExpression("n = hou.pwd()\nn_hasFlag = n.isMaterialFlagSet()\ni = n.evalParm('inherit_ctrl')\nr = 'none'\nif i == 1 or (n_hasFlag and i == 2):\n    r = 'inherit'\nreturn r", hou.exprLanguage.Python)
+    hou_parm.setKeyframe(hou_keyframe)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/shader_baseprimpath parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("shader_baseprimpath")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set("/__class_mtl__/`$OS`")
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/tabmenumask parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("tabmenumask")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set("karma USD ^mtlxUsd* ^mtlxramp* ^hmtlxramp* ^hmtlxcubicramp* MaterialX parameter constant collect null genericshader subnet subnetconnector suboutput subinput")
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/shader_rendercontextname parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("shader_rendercontextname")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set("kma")
+    hou_parm.setAutoscope(False)
+    
+    
+    # Code for /obj/KB3D_MTM/matnet/karmamaterial/shader_forcechildren parm 
+    if locals().get("km") is None:
+        km = hou.node("/obj/KB3D_MTM/matnet/karmamaterial")
+    hou_parm = km.parm("shader_forcechildren")
+    hou_parm.lock(False)
+    hou_parm.deleteAllKeyframes()
+    hou_parm.set(1)
+    hou_parm.setAutoscope(False)
+    
+    
+    km.setExpressionLanguage(hou.exprLanguage.Hscript)
+    
+    if hasattr(km, "syncNodeVersionIfNeeded"):
+        km.syncNodeVersionIfNeeded("20.0.653")
+####### END KARMA BUILDER EXTRACT#########            
+    
+    #create standard surface
+    km_surface = hou.node(km_path).createNode("mtlxstandard_surface")
+    
+    km_output.setInput(0, km_surface, 0)
+    has_disp=0
+
+    if (enable_rest==1):
+            km_pref = hou.node(km_path).createNode("usdprimvarreader", "import_pref")
+            km_pref.parm("signature").set("vector")
+            km_pref.parm("varname").set("rest")
+    
+    for text in current_mat_textures:
+        #create image node
+        km_image = hou.node(km_path).createNode("kma_hextiled_triplanar")
+        km_image.parm("size").setExpression(triplanar_size_expr)
+        km_image.parm("blend").setExpression(triplanar_blend_expr)
+        km_image.parm("contrast").setExpression("1-"+triplanar_cell_expr)
+        km_image.parm("rand_rot").setExpression(triplanar_rot_expr)
+
+        if (enable_rest==1):
+            km_image.setNamedInput("position", km_pref, "result")
+            
+        
+
+        #set file path
+        km_fileparm = km_image.path()+"/file"
+        km_image.parm(km_fileparm).set(text)
+
+        
+        #define initial inputs
+        if (("_")+user_basecol_name) in text:
+            km_colorspace_setup(km_image, "color", "base_color", "out")
+            
+        if (("_")+user_metallic_name) in text:
+            km_colorspace_setup(km_image, "color", "metalness", "out")   
+            km_image.parm("sourceColorSpace").set("raw")
+
+        if (("_")+user_roughness_name) in text:
+            km_colorspace_setup(km_image, "color", "specular_roughness", "out")
+            km_image.parm("sourceColorSpace").set("raw")
+            
+        if (("_")+user_emission_name) in text:
+            km_colorspace_setup(km_image, "color", "emission_color", "out")
+            km_surface.parm(km_path+"mtlxstandard_surface1/emission").set(1)
+            
+        if (("_")+user_opacity_name) in text:
+            km_colorspace_setup(km_image, "color", "opacity", "out")
+            km_image.parm("sourceColorSpace").set("raw")
+            
+        if (("_")+user_transmission_name) in text:
+            km_colorspace_setup(km_image, "color", "transmission", "out")
+            km_image.parm("sourceColorSpace").set("raw")
+        
+        #specialize for normal and for height    
+        if (("_")+user_normal_name) in text:
+            km_colorspace_setup(km_image, "color", "normal", "out") 
+            km_image.parm("sourceColorSpace").set("raw")
+            
+            #create normal node
+            km_normal = hou.node(km_path).createNode("mtlxnormalmap")
+            
+            #connect inputs and position
+            km_normal.setNamedInput("in", km_image, "out")
+            km_surface.setNamedInput("normal", km_normal, "out")
+            
+        #specialize for height displacement
+        if (("_")+user_displacement_name) in text:
+            km_colorspace_setup(km_image, "color", "diffuse_roughness", "out")
+            km_image.parm("sourceColorSpace").set("raw")
+            has_disp = 1
+            
+            #create displacement node and set scale
+            km_surface.setInput(2, None)
+            km_height = hou.node(km_path).createNode("mtlxdisplacement")
+            km_height.parm("scale").set(disp_amount)
+            
+            if (remap_found==1):
+                #create offset node set range
+                km_height_offset = hou.node(km_path).createNode("mtlxremap")
+                km_height_offset.parm("outlow").set(low_offset)
+                km_height_offset.parm("outhigh").set(high_offset)
+                
+                #connect nodes
+                km_height_offset.setNamedInput("in", km_image, "out")
+                km_height.setNamedInput("displacement", km_height_offset, "out")
+                km_output.setInput(1, km_height, 0)
+                
+            else:
+                km_height.setNamedInput("displacement", km_image, "out")
+                km_output.setInput(1, km_height, 0)
+                
+            
+
+        
+        #name image nodes
+        nodename = text.split("/")
+        if (".jpg" in nodename[-1]):
+            node_name = nodename[-1].replace(".jpg", "_km")
+            km_image.setName(node_name.replace("-", "_"), unique_name=True)
+            print("Created Karma "+node_name)
+        
+        if (".png" in nodename[-1]):
+            node_name = nodename[-1].replace(".png", "_km")
+            km_image.setName(node_name.replace("-", "_"), unique_name=True)
+            print("Created Karma "+node_name)
+
+        if (".jpeg" in nodename[-1]):
+            node_name = nodename[-1].replace(".jpeg", "_km")
+            km_image.setName(node_name.replace("-", "_"), unique_name=True)
+            print("Created Karma "+node_name)
+
+
+        
+
+    if (enable_rest==1):
+        needs_pref.append(name)
+
+    #create karma properties
+    km_properties = hou.node(km_path).createNode("kma_material_properties")
+    km_output.setInput(2, km_properties, 0)
+    km_output.parm("name1").set("surface")        
+    km_output.parm("name2").set("displacement")
+    
+    #nicely layout karma nodes
+    km.layoutChildren(horizontal_spacing = 2.0, vertical_spacing = 2.0) 
+    
+######END KARMA SETUP#######
+
+    
+
+    if (ar_exists==1):
+        col.setInput(0, ar, 0)
+        col.setInput(1, km, 0)
+        col.setInput(2, km, 1)
+        if (has_disp==1):
+            col.setInput(2, km, 1)
+            col.setInput(3, km, 2)
+    else:
+        col.setInput(0, km, 0)
+        col.setInput(1, km, 1)
+        if (has_disp==1):
+            col.setInput(1, km, 1)
+            col.setInput(2, km, 2)
+
+#switch update mode to automatic
+hou.ui.setUpdateMode(hou.updateMode.AutoUpdate)
+
+ #flag errors if nodes did not contain matx nodes
+if (len(name_change)>0):
+    error_mat_str = "\n".join(str(element) for element in name_change)
+    hou.ui.displayMessage("The materials below had a '-' in the file name. \nThis has been changed changed to an '_' for USD naming standards. \nBe aware auto naming may break with the following materials:\n\n"+error_mat_str, severity=hou.severityType.Warning)
+
+if (len(needs_pref)>0):
+    needs_pref_str = "\n".join(str(element) for element in needs_pref)
+    hou.ui.displayMessage("The materials below have displacement in their triplanar setup, they have been set to use a 'rest' attribute for accurate mapping. \nPlease create 'rest' if it does not exist!\n\n"+needs_pref_str, severity=hou.severityType.Warning)
+
+
+#layout materials
+mtl_lib.layoutChildren()
+mtl_lib.setCurrent(True, clear_all_selected=True)]]></script>
+  </tool>
+
+  <tool name="asset_dpt_publish" label="Asset Department Publish" icon="hicon:/SVGIcons.index?SOP_usdexport.svg">
+    <script scriptType="python"><![CDATA[import hou
+template_path = f"{hou.getenv('VFX_LIB')}/_templates/asset_dpt_publish.hipnc"
+hou.hipFile.merge(template_path, node_pattern='*dept*')]]></script>
+  </tool>
+
+  <tool name="updata_usd_db_filepath" label="Update Asset File Path" icon="hicon:/SVGIcons.index?BUTTONS_link.svg">
+    <script scriptType="python"><![CDATA[import hou
+def update_usd_db_filepath(source_id: str, old_path: str, new_path: str):
+    data_source = hou.AssetGalleryDataSource(source_id)
+    for itemID in data_source.itemIds():
+        current_value = data_source.filePath(itemID)
+        if old_path in current_value:
+            new_value = current_value.replace(old_path, new_path)
+            data_source.setFilePath(itemID, new_value)
+        
+source_id = '/Users/suhail/Library/CloudStorage/Dropbox/houdini/assetGalleryDB/usd_assetGallery.db'
+old_path = '/Users/suhail/Library/CloudStorage/Dropbox/threeD/lib/usd'
+new_path = '$USD_LIB'
+update_usd_db_filepath(source_id, old_path, new_path)
+]]></script>
+  </tool>
+</shelfDocument>

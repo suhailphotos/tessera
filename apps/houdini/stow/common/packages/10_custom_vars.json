@@ -1,0 +1,16 @@
+{
+  "env": [
+    { "CREDENTIALS_PATH": "${DROPBOX}/matrix/config/credentials" },
+    { "HDRI_LIB":         "${USD_LIB}/assets/lgt/hdri/_publish" },
+    { "KITBASH_ASSETS":   "${USD_DRIVE}/ingest/kitbash" },
+    { "VFX_LIB":          "${USD_DRIVE}" },
+    { "USD_LIB":          "${USD_LIB}" },
+    { "PROJECTS":         "${DROPBOX}/threeD/projects" },
+    { "COURSES":          "${DATALIB}/threeD/courses" },
+    { "ASSET_INGEST_DIR": "${USD_DRIVE}/ingest" },
+    { "ICLOUD_DRIVE":     "${HOME}" },
+    { "HOUDINI_ASSETGALLERY_DB_FILE": "${DROPBOX}/matrix/data/db/assetGallery/usd_assetGallery.db" },
+    { "HOUDINI_BACKUP_DIR": ".backup" },
+    { "ICON_DIR":         "${DROPBOX}/matrix/assets/icons/DOWNLOADED" }
+  ]
+}

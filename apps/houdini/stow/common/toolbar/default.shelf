@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<shelfDocument>
+  <!-- This file contains definitions of shelves, toolbars, and tools.
+ It should not be hand-edited when it is being used by the application.
+ Note, that two definitions of the same element are not allowed in
+ a single file. -->
+
+  <tool name="axis_orientation" label="Axis Orientation" icon="PLASMA_App">
+    <script scriptType="python"><![CDATA[import hou
+
+obj = hou.node('/obj/')
+geo = obj.createNode('geo', 'orient_test_geo')
+x_dir = geo.createNode('box', 'x_dir')
+x_dir.parmTuple('size').set((0.5,0.05,0.05))
+x_dir.parm('tx').setExpression('ch("sizex")/2')
+color1 = geo.createNode('color', 'color1')
+color1.setInput(0, x_dir, 0)
+color1.parmTuple('color').set((.305, 0.075945, 0.075945))
+
+y_dir = geo.createNode('box', 'y_dir')
+y_dir.parmTuple('size').set((0.05,0.5,0.05))
+y_dir.parm('ty').setExpression('ch("sizey")/2')
+color2 = geo.createNode('color', 'color2')
+color2.setInput(0, y_dir, 0)
+color2.parmTuple('color').set((0.075945, 0.305, 0.075945))
+
+z_dir = geo.createNode('box', 'z_dir')
+z_dir.parmTuple('size').set((0.05,0.05,0.5))
+z_dir.parm('tz').setExpression('ch("sizez")/2')
+color3 = geo.createNode('color', 'color3')
+color3.setInput(0, z_dir, 0)
+color3.parmTuple('color').set((0.075945, 00.075945, 0.305))
+
+merge = geo.createNode('merge', 'merge_axis')
+merge.setInput(0, color1, 0)
+merge.setInput(1, color2, 0)
+merge.setInput(2, color3, 0)
+
+null = geo.createNode('null', 'axis_out')
+null.setInput(0, merge, 0)
+null.setDisplayFlag('on')
+null.setRenderFlag('on')
+
+
+geo.layoutChildren()]]></script>
+  </tool>
+
+  <tool name="fspy_import" label="fspy Import" icon="$HOME/Library/CloudStorage/Dropbox/matrix/assets/icons/fspy_icon.png">
+    <script scriptType="python"><![CDATA['''
+## Running the Tool in Houdini
+
+To use the fSpy tool in Houdini, follow these steps:
+
+1. **Create a New Shelf Tool:**
+   - Open Houdini and create a new shelf tool.
+   - Give it a descriptive name such as 'fspy import.'
+
+2. **Copy Script Contents:**
+   - Open the newly created shelf tool.
+   - Navigate to the 'Scripts' tab.
+   - Copy the contents of the `shelf_hou.py` file into the script editor.
+
+3. **Download fSpy Branch from GitHub:**
+   - Download the fSpy branch from [GitHub](https://github.com/suhailphotos/houdiniUtils/tree/fSpy) to your desired location.
+
+4. **Set Python Path:**
+   - Add the path to the fSpy branch to Houdini's Python path.
+   - This can be accomplished in two ways:
+     - **houdini.env:** Add the path to the `houdini.env` file. For example:
+       ```
+       PYTHONPATH = $PYTHONPATH;YOUR_PATH_TO_FSPY_BRANCH
+       ```
+     - **Houdini Packages:** Alternatively, use Houdini packages to manage Python paths.
+
+Now, the 'fspy import' tool on your shelf should be ready to use for importing cameras using fSpy in Houdini.
+
+'''
+
+from fSpy import fspy
+from importlib import reload
+reload(fspy)
+fspy_cam1 = fspy.fSpy()
+json_path = fspy_cam1.get_json()
+def create_camera():
+    if json_path:
+        fspy_cam1.get_image()
+        fspy_cam1.get_cam_inputs()
+        fspy_cam1.get_fspy_data()
+        fspy_cam1.create_fspy_cam()
+    else:
+        return
+
+create_camera()
+]]></script>
+  </tool>
+
+  <tool name="add_ref_source" label="Add Ref Source" icon="PLASMA_App">
+    <script scriptType="python"><![CDATA[import hou
+
+for node in hou.selectedNodes():
+    node_g = node.parmTemplateGroup()
+    source = hou.StringParmTemplate('ref_source', 'Reference Source', 1, string_type=hou.stringParmType.NodeReference)
+    node_g.insertBefore((0,),source)
+    node.setParmTemplateGroup(node_g)
+    node.setColor(hou.Color((.38,.408,.553)))
+print ("hou.node(pwd().evalParm('ref_source')).evalParm('enter_parm')")]]></script>
+  </tool>
+
+  <toolshelf name="python" label="Python"/>
+
+  <tool name="add_proj" label="Add Project" icon="$HOME/Library/CloudStorage/Dropbox/matrix/assets/icons/icons8-visual-effects-100 copy.png">
+    <script scriptType="python"><![CDATA[from projTools import main as projTools
+from importlib import reload
+import pprint
+reload(projTools)
+
+courses = projTools.ProjManager('/Users/suhail/Library/CloudStorage/Dropbox/matrix/config/config.ini', 'courses')
+courses.addProj()
+
+]]></script>
+  </tool>
+
+  <tool name="create_proj" label="Create Prject" icon="$HOME/Library/CloudStorage/Dropbox/matrix/assets/icons/icons8-visual-effects-100.png">
+    <script scriptType="python"><![CDATA[from projTools import main as projTools
+from importlib import reload
+import pprint
+reload(projTools)
+
+test_proj = projTools.ProjManager('/Users/suhail/Library/CloudStorage/Dropbox/matrix/config/config.ini', 'personalProjects')
+test_proj.create_proj('/Users/suhail/Library/CloudStorage/Dropbox/matrix/data/csv/proj_folders.csv')
+]]></script>
+  </tool>
+
+  <tool name="glb2usd" label="Glb 2 USD" icon="$HOME/Library/CloudStorage/Dropbox/matrix/assets/icons/USD_Logo.png">
+    <script scriptType="python"><![CDATA[import hou
+from importlib import reload
+from usdUtils import glb2usd
+
+reload(glb2usd)
+
+glb_file_path = hou.ui.selectFile(start_directory=hou.getenv('HIP'), title='Select glb file', collapse_sequences=False, file_type=hou.fileType.Gltf)
+glbObjAsset = glb2usd.GlbObjAsset(glb_file_path)
+glbObjAsset.import_glb()
+glb_stage = glb2usd.GlbStageAsset(glbObjAsset)
+
+]]></script>
+  </tool>
+
+  <tool name="fspy" label="fSpy Cam" icon="~/Library/CloudStorage/Dropbox/matrix/assets/icons/fspy_icon.png">
+    <script scriptType="python"><![CDATA[import houdiniUtils
+from importlib import reload
+reload(houdiniUtils.fSpy)
+fspy_cam = houdiniUtils.fSpy.fSpy()
+json_path = fspy_cam.get_json()
+def create_camera():
+    if json_path:
+        fspy_cam.get_image()
+        fspy_cam.get_cam_inputs()
+        fspy_cam.get_fspy_data()
+        fspy_cam.create_fspy_cam()
+    else:
+        return
+         
+create_camera()]]></script>
+  </tool>
+
+  <tool name="new_proj" label="New Project" icon="$HOME/Library/CloudStorage/Dropbox/matrix/assets/icons/add_new_proj.png">
+    <script scriptType="python"><![CDATA[import houdiniUtils.projTools as projTools
+from importlib import reload
+import pprint
+reload(projTools)
+
+new_proj = projTools.ProjManager('/Users/suhail/Library/CloudStorage/Dropbox/matrix/config/config.ini', 'personalProjects')
+new_proj.create_proj('/Users/suhail/Library/CloudStorage/Dropbox/matrix/data/csv/proj_folders.csv')
+]]></script>
+  </tool>
+
+  <tool name="add_course" label="Add Course" icon="$HOME/Library/CloudStorage/Dropbox/matrix/assets/icons/4762311.png">
+    <script scriptType="python"><![CDATA[import houdiniUtils.projTools as projTools
+from importlib import reload
+import pprint
+reload(projTools)
+
+new_course = projTools.ProjManager('/Users/suhail/Library/CloudStorage/Dropbox/matrix/config/config.ini', 'courses')
+new_course.create_proj('/Users/suhail/Library/CloudStorage/Dropbox/matrix/data/csv/proj_folders.csv')]]></script>
+  </tool>
+
+  <tool name="node_color" label="Node Color" icon="hicon:/SVGIcons.index?BUTTONS_chooser_color.svg">
+    <script scriptType="python"><![CDATA[import hou
+
+sel_items = hou.selectedItems()
+if not sel_items:
+    print("No node selected.")
+else:
+    initial_color = sel_items[0].color()
+    color = hou.ui.selectColor(initial_color=initial_color)
+    if color is not None:
+        for item in sel_items:
+            item.setColor(color)
+]]></script>
+  </tool>
+
+  <toolshelf name="shelf_1" label="Test Shelf">
+    <memberTool name="tool_2"/>
+  </toolshelf>
+
+  <tool name="tool_2" label="New Tool" icon="PLASMA_App">
+    <script scriptType="python"><![CDATA[scan_dir = hou.ui.selectFile(file_type=hou.fileType.Directory)
+print(scan_dir)]]></script>
+  </tool>
+
+  <tool name="copy_node_col" label="Copy Node Color" icon="hicon:/SVGIcons.index?BUTTONS_chooser_color.svg">
+    <script scriptType="python"><![CDATA[# Node color from the first selected node is copied to others
+
+import hou
+
+
+sel_items = hou.selectedItems()
+if not sel_items:
+    print("No node selected.")
+else:
+    initial_color = sel_items[0].color()
+    for item in sel_items[1:]:
+        item.setColor(initial_color)
+        
+]]></script>
+  </tool>
+
+  <tool name="clear_recent_files" label="Clear Recent" icon="hicon:/SVGIcons.index?BUTTONS_clear.svg">
+    <script scriptType="python"><![CDATA[import os
+import hou
+
+# Path to the file.history file
+hou.getenv('HOUDINI_USER_PREF_DIR')
+file_history_path = os.path.join(hou.getenv('HOUDINI_USER_PREF_DIR'), 'file.history')
+
+# Read the file.history content
+with open(file_history_path, 'r') as file:
+    lines = file.readlines()
+
+# Flag to track if we are in the HIP section
+in_hip_section = False
+processed_lines = []
+
+for line in lines:
+    # Detect the start of the HIP section
+    if line.strip() == "HIP":
+        in_hip_section = True
+        continue  # Skip this line
+    # Detect the end of the HIP section
+    elif in_hip_section and line.strip() == "}":
+        in_hip_section = False
+        continue  # Skip this line
+    # Skip lines within the HIP section
+    elif in_hip_section:
+        continue
+
+    # Add lines outside the HIP section to the processed_lines
+    processed_lines.append(line)
+
+# Write the processed lines back to the file.history
+with open(file_history_path, 'w') as file:
+    file.writelines(processed_lines)
+
+print("Cleared the HIP section in the file.history.")]]></script>
+  </tool>
+
+  <tool name="google_drive" label="Google Drive" icon="$HOME/Library/CloudStorage/Dropbox/pictures/assets/icon/grey/googleCloud_grey.svg">
+    <script scriptType="python"><![CDATA[import hou
+from oauthmanager.core import get_client
+
+drive = get_client("google_drive", scopes=[
+        "https://www.googleapis.com/auth/drive"
+])
+
+# list 10 files to prove it works
+resp = drive.files().list(pageSize=10, fields="files(id,name)").execute()
+for f in resp["files"]:
+    print(f["name"], f["id"])]]></script>
+  </tool>
+
+  <tool name="ngrok" label="New Tool" icon="PLASMA_App">
+    <script scriptType="python"><![CDATA[import requests
+
+url = "https://ea8c-34-169-196-38.ngrok-free.app/echo"   # Replace with your actual ngrok URL
+
+payload = {"test_message": "Hello from Houdini via FastAPI All!"}
+
+response = requests.post(url, json=payload)
+print("Colab replied:", response.json())]]></script>
+  </tool>
+
+  <shelfSetEdit name="shelf_set_1" fileLocation="/Applications/Houdini/Houdini20.5.332/Frameworks/Houdini.framework/Versions/20.5/Resources/houdini/toolbar/ShelfDefinitions.shelf">
+    <addMemberToolshelf name="rbl" inPosition="14"/>
+    <addMemberToolshelf name="suhail" inPosition="15"/>
+  </shelfSetEdit>
+</shelfDocument>

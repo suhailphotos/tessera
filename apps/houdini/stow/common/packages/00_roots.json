@@ -1,0 +1,27 @@
+{
+  "env": [
+    {
+      "DROPBOX": [
+        { "houdini_os=='macos'": "${HOME}/Library/CloudStorage/Dropbox" },
+        { "houdini_os=='linux'": "${HOME}/Dropbox" },
+        { "houdini_os=='windows'": "${USERPROFILE}/Dropbox" }
+      ]
+    },
+    {
+      "DATALIB": [
+        { "houdini_os=='macos'": "${HOME}/Library/CloudStorage/SynologyDrive-dataLib" },
+        { "houdini_os=='linux'": "/mnt/dataLib" },
+        { "houdini_os=='windows'": "${USERPROFILE}/Synology-dataLib" }
+      ]
+    },
+    {
+      "USD_DRIVE": [
+        { "houdini_os=='macos'": "${HOME}/Library/CloudStorage/SynologyDrive-usdDrive" },
+        { "houdini_os=='linux'": "${HOME}/SynologyDrive-usdDrive" },
+        { "houdini_os=='windows'": "${USERPROFILE}/SynologyDrive-usdDrive" }
+      ]
+    },
+    { "USD_LIB": "${USD_DRIVE}/usd" }
+  ],
+  "path": "${HOUDINI_USER_PREF_DIR}"
+}
