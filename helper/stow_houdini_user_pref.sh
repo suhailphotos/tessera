@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# stow_houdini_user_pref.sh  — Bash 3.2 compatible
+# stow_houdini_user_pref.sh — Bash 3.2 compatible
 # Robustly stow tessera Houdini prefs with conflict backups.
-# Usage:
-#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/suhailphotos/tessera/refs/heads/main/helper/stow_houdini_user_pref.sh)"
+#
+# Usage (shareable):
+#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/suhailphotos/tessera/refs/heads/main/helper/stow_houdini_user_pref.sh)" [-- --dry-run]
 #
 # Flags:
 #   --tessera <dir>            Override tessera dir (default: $MATRIX/tessera or ~/Library/CloudStorage/Dropbox/matrix/tessera on mac)
@@ -10,8 +11,29 @@
 #   --yes | -y                 Assume yes (noninteractive)
 #   --dry-run | -n             Dry run (pass -n -v to stow)
 #   --ref <git ref> | --dev <branch>   Checkout tessera at ref/branch before stow
+
 set -euo pipefail
 IFS=$'\n\t'
+
+usage() {
+  cat <<'EOF'
+stow_houdini_user_pref.sh — stow tessera Houdini prefs safely
+
+Flags:
+  --tessera <dir>            Override tessera dir (default: $MATRIX/tessera or ~/Library/CloudStorage/Dropbox/matrix/tessera on mac)
+  --versions "21.0 20.5"     Stow only these X.Y versions
+  --yes | -y                 Assume yes (noninteractive)
+  --dry-run | -n             Dry run (pass -n -v to stow)
+  --ref <git ref> | --dev <branch>   Checkout tessera at ref/branch before stow
+
+Examples:
+  # Dry-run (recommended first)
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/suhailphotos/tessera/refs/heads/main/helper/stow_houdini_user_pref.sh)" -- --dry-run
+
+  # Real run
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/suhailphotos/tessera/refs/heads/main/helper/stow_houdini_user_pref.sh)"
+EOF
+}
 
 # ---------------- Flags ----------------
 TES_DIR=""; VERSIONS=""; ASSUME_YES=0; DRYRUN=0; REF=""; DEV=""
@@ -23,7 +45,7 @@ while [[ $# -gt 0 ]]; do
     -n|--dry-run) DRYRUN=1 ;;
     --ref) REF="${2:-}"; shift ;;
     --dev) DEV="${2:-}"; shift ;;
-    -h|--help) sed -n '1,120p' "$0"; exit 0 ;;
+    -h|--help) usage; exit 0 ;;
     --) shift; break ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac; shift
@@ -47,7 +69,7 @@ uname_s="$(uname -s || true)"
 case "$uname_s" in
   Darwin) OS="mac" ;;
   Linux)  OS="linux" ;;
-  CYGWIN*|MINGW*|MSYS*) OS="win" ;;   # run from MSYS2/Cygwin bash
+  CYGWIN*|MINGW*|MSYS*) OS="win" ;;   # MSYS2/Cygwin bash
   *) die "Unsupported OS: ${uname_s}" ;;
 esac
 log "OS detected: $OS"
@@ -121,7 +143,7 @@ fi
 STOW_DIR="$TES_DIR/apps/houdini/stow"
 [[ -d "$STOW_DIR/common" ]] || die "Missing tessera package dir: $STOW_DIR/common"
 
-# ---------------- Ignore rules (avoid conflicts you saw) ----------------
+# ---------------- Ignore rules (avoid conflicts) ----------------
 ensure_ignore() {
   local pkg_dir="$1" f="$1/.stow-local-ignore"
   mkdir -p "$pkg_dir"; touch "$f"
@@ -137,74 +159,89 @@ ensure_ignore() {
 }
 ensure_ignore "$STOW_DIR/common"
 
-# ---------------- Version detection (set -e safe) ----------------
+# ---------------- Version detection (no regex conditionals) ----------------
 versions=()
 if [[ -n "$VERSIONS" ]]; then
   for v in $VERSIONS; do [[ -n "$v" ]] && versions+=("$v"); done
 else
   case "$OS" in
     mac)
-      # Use glob + regex (no fragile pipes under set -e/pipefail)
       shopt -s nullglob
-      hits=()
+      uniqfile="$(mktemp /tmp/houvers.XXXXXX)"
       for p in /Applications/Houdini/Houdini*; do
-        base="${p##*/}"                   # e.g., Houdini21.0.440
-        if [[ "$base" =~ ^Houdini([0-9]+)\.([0-9]+)\.[0-9]+$ ]]; then
-          hits+=("${BASH_REMATCH[1]}.${BASH_REMATCH[2]}")
-        fi
+        base="${p##*/}"           # e.g., Houdini21.0.440
+        case "$base" in
+          Houdini*.*.*)
+            num="${base#Houdini}" # 21.0.440
+            IFS='.' read -r maj min patch <<<"$num"
+            [[ -n "${maj:-}" && -n "${min:-}" ]] && printf '%s.%s\n' "$maj" "$min" >>"$uniqfile"
+            ;;
+        esac
       done
       shopt -u nullglob
-      # de-dup
-      if (( ${#hits[@]} )); then
-        while IFS= read -r line; do versions+=("$line"); done < <(printf '%s\n' "${hits[@]}" | awk '!seen[$0]++' )
+      if [[ -s "$uniqfile" ]]; then
+        # de-dup with awk (portable)
+        while IFS= read -r line; do versions+=("$line"); done < <(awk '!seen[$0]++' "$uniqfile")
       fi
+      rm -f "$uniqfile" || true
       ;;
     linux)
       shopt -s nullglob
-      hits=()
+      uniqfile="$(mktemp /tmp/houvers.XXXXXX)"
       for p in /opt/hfs*; do
-        base="${p##*/}"                   # hfs21.0.440
-        if [[ "$base" =~ ^hfs([0-9]+)\.([0-9]+)\.[0-9]+$ ]]; then
-          hits+=("${BASH_REMATCH[1]}.${BASH_REMATCH[2]}")
-        fi
+        base="${p##*/}"           # hfs21.0.440
+        case "$base" in
+          hfs*.*.*)
+            num="${base#hfs}"     # 21.0.440
+            IFS='.' read -r maj min patch <<<"$num"
+            [[ -n "${maj:-}" && -n "${min:-}" ]] && printf '%s.%s\n' "$maj" "$min" >>"$uniqfile"
+            ;;
+        esac
       done
       shopt -u nullglob
-      if (( ${#hits[@]} )); then
-        while IFS= read -r line; do versions+=("$line"); done < <(printf '%s\n' "${hits[@]}" | awk '!seen[$0]++' )
+      if [[ -s "$uniqfile" ]]; then
+        while IFS= read -r line; do versions+=("$line"); done < <(awk '!seen[$0]++' "$uniqfile")
       fi
+      rm -f "$uniqfile" || true
       ;;
     win)
       shopt -s nullglob
-      hits=()
+      uniqfile="$(mktemp /tmp/houvers.XXXXXX)"
       for p in "/c/Program Files/Side Effects Software"/Houdini* "/c/Program Files (x86)/Side Effects Software"/Houdini*; do
         [[ -e "$p" ]] || continue
-        base="${p##*/}"
-        if [[ "$base" =~ ^Houdini[ _-]?([0-9]+)\.([0-9]+)\.[0-9]+$ ]]; then
-          hits+=("${BASH_REMATCH[1]}.${BASH_REMATCH[2]}")
-        fi
+        base="${p##*/}"           # Houdini21.0.440
+        case "$base" in
+          Houdini*.*.*)
+            num="${base#Houdini}"
+            IFS='.' read -r maj min patch <<<"$num"
+            [[ -n "${maj:-}" && -n "${min:-}" ]] && printf '%s.%s\n' "$maj" "$min" >>"$uniqfile"
+            ;;
+        esac
       done
       shopt -u nullglob
-      if (( ${#hits[@]} )); then
-        while IFS= read -r line; do versions+=("$line"); done < <(printf '%s\n' "${hits[@]}" | awk '!seen[$0]++' )
+      if [[ -s "$uniqfile" ]]; then
+        while IFS= read -r line; do versions+=("$line"); done < <(awk '!seen[$0]++' "$uniqfile")
       fi
+      rm -f "$uniqfile" || true
       ;;
   esac
 fi
-# Fallback: if nothing detected, but user pref dirs exist, use those; else give a friendly error
+
+# Fallback: harvest user-pref dirs if no installs detected (mac)
 if (( ${#versions[@]} == 0 )); then
-  case "$OS" in
-    mac)
-      shopt -s nullglob
-      for d in "$HOME/Library/Preferences/houdini"/*; do
-        [[ -d "$d" ]] || continue
-        bn="${d##*/}"                      # e.g., 21.0
-        [[ "$bn" =~ ^[0-9]+\.[0-9]+$ ]] && versions+=("$bn")
-      done
-      shopt -u nullglob
-      ;;
-    linux|win) : ;;
-  esac
+  if [[ "$OS" == "mac" ]]; then
+    shopt -s nullglob
+    for d in "$HOME/Library/Preferences/houdini"/*; do
+      [[ -d "$d" ]] || continue
+      bn="${d##*/}"
+      case "$bn" in
+        *.*) IFS='.' read -r maj min <<<"$bn"; [[ -n "${maj:-}" && -n "${min:-}" ]] && versions+=("$maj.$min");;
+      esac
+    done
+    shopt -u nullglob
+  fi
 fi
+
 (( ${#versions[@]} )) || die "No Houdini installations detected. Install Houdini first, then re-run."
 log "Houdini versions detected: ${versions[*]}"
 
@@ -228,13 +265,8 @@ seed_once() {
 # Move pre-existing *files* (not symlinks) that would conflict with stow
 backup_conflicts() {
   local pkg="$1" target="$2" ts; ts="$(timestamp)"
-  # dry-run stow to harvest the would-conflict paths
   local out
-  if [[ $DRYRUN -eq 1 ]]; then
-    out="$(stow -n -v -d "$STOW_DIR" -t "$target" "$pkg" 2>&1 || true)"
-  else
-    out="$(stow -n -v -d "$STOW_DIR" -t "$target" "$pkg" 2>&1 || true)"
-  fi
+  out="$(stow -n -v -d "$STOW_DIR" -t "$target" "$pkg" 2>&1 || true)"
   echo "$out" | sed -n 's#.*existing target \(.*\) since neither a link.*#\1#p' \
     | while IFS= read -r rel; do
         [[ -z "$rel" ]] && continue
@@ -250,11 +282,13 @@ backup_conflicts() {
 
 run_stow() {
   local target="$1"
-  local -a flags=()
-  if [[ $DRYRUN -eq 1 ]]; then flags=(-n -v); fi
-  stow "${flags[@]}" -d "$STOW_DIR" -t "$target" common
+  local flags=""
+  if [[ $DRYRUN -eq 1 ]]; then flags="-n -v"; fi
+  # shellcheck disable=SC2086
+  stow $flags -d "$STOW_DIR" -t "$target" common
   if [[ -d "$STOW_DIR/$OS" ]]; then
-    stow "${flags[@]}" -d "$STOW_DIR" -t "$target" "$OS"
+    # shellcheck disable=SC2086
+    stow $flags -d "$STOW_DIR" -t "$target" "$OS"
   fi
 }
 
@@ -265,7 +299,6 @@ for ver in "${versions[@]}"; do
   seed_once "$target"
 
   log "Preparing to stow into: $target"
-  # Back up *real* files that would conflict
   backup_conflicts "common" "$target"
   [[ -d "$STOW_DIR/$OS" ]] && backup_conflicts "$OS" "$target"
 
