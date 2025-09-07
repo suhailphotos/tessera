@@ -1,8 +1,7 @@
 {
-  "enable" : true,
-  "show" : true,
-  "load_package_once" : true,
+  "enable": true,
+  "load_package_once": true,
   "env": [
-	{"OCIO" : "${OCIO-/Users/suhail/Library/Preferences/houdini/20.5/ocio/houdini-config-v1.0.0_aces-v1.3_ocio-v2.1.ocio}"}
+    { "OCIO": "${OCIO-${HOUDINI_USER_PREF_DIR}/ocio/houdini-config-v1.0.0_aces-v1.3_ocio-v2.1.ocio}" }
   ]
 }

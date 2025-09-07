@@ -1,0 +1,8 @@
+(^|/)\.DS_Store$
+(^|/)\.git($|/)
+(^|/)\.gitignore$
+(^|/)README(\.md)?$
+(^|/)seed($|/)
+^houdini\.env$
+^toolbar/default\.shelf$
+^toolbar/shelf_tool_assets\.json$
