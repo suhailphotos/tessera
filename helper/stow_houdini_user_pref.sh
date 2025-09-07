@@ -279,13 +279,17 @@ backup_conflicts() {
 
 run_stow() {
   target="$1"
-  flags=""
-  if [ "$DRYRUN" -eq 1 ]; then flags="-n -v"; fi
-  # shellcheck disable=SC2086
-  stow $flags -d "$STOW_DIR" -t "$target" common
-  if [ -d "$STOW_DIR/$OS" ]; then
-    # shellcheck disable=SC2086
-    stow $flags -d "$STOW_DIR" -t "$target" "$OS"
+
+  if [ "$DRYRUN" -eq 1 ]; then
+    stow -n -v -d "$STOW_DIR" -t "$target" common
+    if [ -d "$STOW_DIR/$OS" ]; then
+      stow -n -v -d "$STOW_DIR" -t "$target" "$OS"
+    fi
+  else
+    stow -d "$STOW_DIR" -t "$target" common
+    if [ -d "$STOW_DIR/$OS" ]; then
+      stow -d "$STOW_DIR" -t "$target" "$OS"
+    fi
   fi
 }
 
