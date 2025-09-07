@@ -37,7 +37,7 @@ EOF
 
 # ---------------- Flags ----------------
 TES_DIR=""; VERSIONS=""; ASSUME_YES=0; DRYRUN=0; REF=""; DEV=""
-while [[ $# -gt 0 ]]; do
+while [ $# -gt 0 ]; do
   case "$1" in
     --tessera)  TES_DIR="${2:-}"; shift ;;
     --versions) VERSIONS="${2:-}"; shift ;;
@@ -56,10 +56,10 @@ warn() { printf '⚠️  %s\n' "$*" >&2; }
 die()  { printf '❌ %s\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 timestamp() { date +"%Y%m%d-%H%M%S"; }
-is_tty() { [[ -t 0 && -t 1 ]]; }
+is_tty() { [ -t 0 ] && [ -t 1 ]; }
 ask() {
-  local prompt="$1" def="${2:-}" ans=""
-  if (( ASSUME_YES )); then echo "$def"; return 0; fi
+  prompt="$1"; def="${2:-}"; ans=""
+  if [ "$ASSUME_YES" -eq 1 ]; then echo "$def"; return 0; fi
   if is_tty; then read -r -p "$prompt ${def:+[$def]}: " ans || true; echo "${ans:-$def}"
   else echo "$def"; fi
 }
@@ -69,7 +69,7 @@ uname_s="$(uname -s || true)"
 case "$uname_s" in
   Darwin) OS="mac" ;;
   Linux)  OS="linux" ;;
-  CYGWIN*|MINGW*|MSYS*) OS="win" ;;   # MSYS2/Cygwin bash
+  CYGWIN*|MINGW*|MSYS*) OS="win" ;;
   *) die "Unsupported OS: ${uname_s}" ;;
 esac
 log "OS detected: $OS"
@@ -87,20 +87,20 @@ ensure_stow() {
       fi ;;
     linux)
       if have apt-get; then
-        if ((ASSUME_YES)); then sudo apt-get update -y && sudo apt-get install -y stow
+        if [ "$ASSUME_YES" -eq 1 ]; then sudo apt-get update -y && sudo apt-get install -y stow
         else warn "Install stow: sudo apt-get update && sudo apt-get install stow"; die "Re-run after installing stow."; fi
       elif have dnf; then
-        ((ASSUME_YES)) && sudo dnf install -y stow || { warn "Install stow: sudo dnf install stow"; die "Re-run after installing stow."; }
+        if [ "$ASSUME_YES" -eq 1 ]; then sudo dnf install -y stow; else warn "Install stow: sudo dnf install stow"; die "Re-run after installing stow."; fi
       elif have pacman; then
-        ((ASSUME_YES)) && sudo pacman -Sy --noconfirm stow || { warn "Install stow: sudo pacman -S stow"; die "Re-run after installing stow."; }
+        if [ "$ASSUME_YES" -eq 1 ]; then sudo pacman -Sy --noconfirm stow; else warn "Install stow: sudo pacman -S stow"; die "Re-run after installing stow."; fi
       elif have zypper; then
-        ((ASSUME_YES)) && sudo zypper install -y stow || { warn "Install stow: sudo zypper install stow"; die "Re-run after installing stow."; }
+        if [ "$ASSUME_YES" -eq 1 ]; then sudo zypper install -y stow; else warn "Install stow: sudo zypper install stow"; die "Re-run after installing stow."; fi
       else
         die "Please install GNU Stow with your package manager, then re-run."
       fi ;;
     win)
       if have pacman; then
-        ((ASSUME_YES)) && pacman -S --noconfirm stow || { warn "Install stow: pacman -S stow"; die "Re-run after installing stow."; }
+        if [ "$ASSUME_YES" -eq 1 ]; then pacman -S --noconfirm stow; else warn "Install stow: pacman -S stow"; die "Re-run after installing stow."; fi
       else
         die "Windows: run under MSYS2/Cygwin and install stow (pacman -S stow), then re-run."
       fi ;;
@@ -110,7 +110,7 @@ ensure_stow
 
 # ---------------- Tessera repo ----------------
 DEFAULT_MATRIX="${MATRIX:-}"
-if [[ -z "$DEFAULT_MATRIX" ]]; then
+if [ -z "$DEFAULT_MATRIX" ]; then
   case "$OS" in
     mac) DEFAULT_MATRIX="$HOME/Library/CloudStorage/Dropbox/matrix" ;;
     *)   DEFAULT_MATRIX="$HOME/Dropbox/matrix" ;;
@@ -119,7 +119,7 @@ fi
 DEFAULT_TES="${DEFAULT_MATRIX}/tessera"
 TES_DIR="${TES_DIR:-$DEFAULT_TES}"
 
-if [[ ! -d "$TES_DIR/.git" ]]; then
+if [ ! -d "$TES_DIR/.git" ]; then
   log "Tessera repo not found at: $TES_DIR"
   parent="$(dirname "$TES_DIR")"
   parent="$(ask "Where should I clone 'tessera'?" "$parent")"
@@ -133,7 +133,7 @@ else
 fi
 
 # Optional checkout
-if [[ -n "${DEV:-}" || -n "${REF:-}" ]]; then
+if [ "${DEV-}" != "" ] || [ "${REF-}" != "" ]; then
   REF="${DEV:-$REF}"
   log "Checking out tessera @ $REF"
   git -C "$TES_DIR" fetch --depth 1 origin "$REF" || true
@@ -141,11 +141,11 @@ if [[ -n "${DEV:-}" || -n "${REF:-}" ]]; then
 fi
 
 STOW_DIR="$TES_DIR/apps/houdini/stow"
-[[ -d "$STOW_DIR/common" ]] || die "Missing tessera package dir: $STOW_DIR/common"
+[ -d "$STOW_DIR/common" ] || die "Missing tessera package dir: $STOW_DIR/common"
 
-# ---------------- Ignore rules (avoid conflicts) ----------------
+# ---------------- Ignore rules ----------------
 ensure_ignore() {
-  local pkg_dir="$1" f="$1/.stow-local-ignore"
+  pkg_dir="$1"; f="$1/.stow-local-ignore"
   mkdir -p "$pkg_dir"; touch "$f"
   _add() { grep -qxF "$1" "$f" 2>/dev/null || echo "$1" >> "$f"; }
   _add '(^|/)\.DS_Store$'
@@ -159,28 +159,28 @@ ensure_ignore() {
 }
 ensure_ignore "$STOW_DIR/common"
 
-# ---------------- Version detection (no regex conditionals) ----------------
+# ---------------- Version detection ----------------
 versions=()
-if [[ -n "$VERSIONS" ]]; then
-  for v in $VERSIONS; do [[ -n "$v" ]] && versions+=("$v"); done
+if [ -n "$VERSIONS" ]; then
+  for v in $VERSIONS; do [ -n "$v" ] && versions+=("$v"); done
 else
   case "$OS" in
     mac)
       shopt -s nullglob
       uniqfile="$(mktemp /tmp/houvers.XXXXXX)"
       for p in /Applications/Houdini/Houdini*; do
-        base="${p##*/}"           # e.g., Houdini21.0.440
+        base="${p##*/}"  # Houdini21.0.440
         case "$base" in
           Houdini*.*.*)
-            num="${base#Houdini}" # 21.0.440
+            num="${base#Houdini}"   # 21.0.440
             IFS='.' read -r maj min patch <<<"$num"
-            [[ -n "${maj:-}" && -n "${min:-}" ]] && printf '%s.%s\n' "$maj" "$min" >>"$uniqfile"
+            if [ -n "${maj:-}" ] && [ -n "${min:-}" ]; then printf '%s.%s\n' "$maj" "$min" >>"$uniqfile"; fi
             ;;
         esac
       done
       shopt -u nullglob
-      if [[ -s "$uniqfile" ]]; then
-        # de-dup with awk (portable)
+      if [ -s "$uniqfile" ]; then
+        # de-dup via awk (portable)
         while IFS= read -r line; do versions+=("$line"); done < <(awk '!seen[$0]++' "$uniqfile")
       fi
       rm -f "$uniqfile" || true
@@ -189,17 +189,17 @@ else
       shopt -s nullglob
       uniqfile="$(mktemp /tmp/houvers.XXXXXX)"
       for p in /opt/hfs*; do
-        base="${p##*/}"           # hfs21.0.440
+        base="${p##*/}"  # hfs21.0.440
         case "$base" in
           hfs*.*.*)
-            num="${base#hfs}"     # 21.0.440
+            num="${base#hfs}"   # 21.0.440
             IFS='.' read -r maj min patch <<<"$num"
-            [[ -n "${maj:-}" && -n "${min:-}" ]] && printf '%s.%s\n' "$maj" "$min" >>"$uniqfile"
+            if [ -n "${maj:-}" ] && [ -n "${min:-}" ]; then printf '%s.%s\n' "$maj" "$min" >>"$uniqfile"; fi
             ;;
         esac
       done
       shopt -u nullglob
-      if [[ -s "$uniqfile" ]]; then
+      if [ -s "$uniqfile" ]; then
         while IFS= read -r line; do versions+=("$line"); done < <(awk '!seen[$0]++' "$uniqfile")
       fi
       rm -f "$uniqfile" || true
@@ -208,18 +208,18 @@ else
       shopt -s nullglob
       uniqfile="$(mktemp /tmp/houvers.XXXXXX)"
       for p in "/c/Program Files/Side Effects Software"/Houdini* "/c/Program Files (x86)/Side Effects Software"/Houdini*; do
-        [[ -e "$p" ]] || continue
-        base="${p##*/}"           # Houdini21.0.440
+        [ -e "$p" ] || continue
+        base="${p##*/}"  # Houdini21.0.440
         case "$base" in
           Houdini*.*.*)
             num="${base#Houdini}"
             IFS='.' read -r maj min patch <<<"$num"
-            [[ -n "${maj:-}" && -n "${min:-}" ]] && printf '%s.%s\n' "$maj" "$min" >>"$uniqfile"
+            if [ -n "${maj:-}" ] && [ -n "${min:-}" ]; then printf '%s.%s\n' "$maj" "$min" >>"$uniqfile"; fi
             ;;
         esac
       done
       shopt -u nullglob
-      if [[ -s "$uniqfile" ]]; then
+      if [ -s "$uniqfile" ]; then
         while IFS= read -r line; do versions+=("$line"); done < <(awk '!seen[$0]++' "$uniqfile")
       fi
       rm -f "$uniqfile" || true
@@ -227,22 +227,20 @@ else
   esac
 fi
 
-# Fallback: harvest user-pref dirs if no installs detected (mac)
-if (( ${#versions[@]} == 0 )); then
-  if [[ "$OS" == "mac" ]]; then
-    shopt -s nullglob
-    for d in "$HOME/Library/Preferences/houdini"/*; do
-      [[ -d "$d" ]] || continue
-      bn="${d##*/}"
-      case "$bn" in
-        *.*) IFS='.' read -r maj min <<<"$bn"; [[ -n "${maj:-}" && -n "${min:-}" ]] && versions+=("$maj.$min");;
-      esac
-    done
-    shopt -u nullglob
-  fi
+# If still empty: harvest user-pref dirs (mac fallback)
+if [ "${#versions[@]}" -eq 0 ] && [ "$OS" = "mac" ]; then
+  shopt -s nullglob
+  for d in "$HOME/Library/Preferences/houdini"/*; do
+    [ -d "$d" ] || continue
+    bn="${d##*/}"        # X.Y
+    case "$bn" in
+      *.*) IFS='.' read -r maj min <<<"$bn"; [ -n "${maj:-}" ] && [ -n "${min:-}" ] && versions+=("$maj.$min");;
+    esac
+  done
+  shopt -u nullglob
 fi
 
-(( ${#versions[@]} )) || die "No Houdini installations detected. Install Houdini first, then re-run."
+[ "${#versions[@]}" -gt 0 ] || die "No Houdini installations detected. Install Houdini first, then re-run."
 log "Houdini versions detected: ${versions[*]}"
 
 # ---------------- Paths/helpers ----------------
@@ -255,24 +253,23 @@ pref_dir_for() {
 }
 
 seed_once() {
-  local target="$1" seed="$TES_DIR/apps/houdini/seed/assetGallery.db"
-  [[ -f "$seed" && ! -e "$target/assetGallery.db" ]] && {
+  target="$1"; seed="$TES_DIR/apps/houdini/seed/assetGallery.db"
+  if [ -f "$seed" ] && [ ! -e "$target/assetGallery.db" ]; then
     cp "$seed" "$target/assetGallery.db"
     log "Seeded assetGallery.db → $target"
-  }
+  fi
 }
 
 # Move pre-existing *files* (not symlinks) that would conflict with stow
 backup_conflicts() {
-  local pkg="$1" target="$2" ts; ts="$(timestamp)"
-  local out
+  pkg="$1"; target="$2"; ts="$(timestamp)"
   out="$(stow -n -v -d "$STOW_DIR" -t "$target" "$pkg" 2>&1 || true)"
   echo "$out" | sed -n 's#.*existing target \(.*\) since neither a link.*#\1#p' \
     | while IFS= read -r rel; do
-        [[ -z "$rel" ]] && continue
-        local abs="$target/$rel"
-        if [[ -e "$abs" && ! -L "$abs" ]]; then
-          local bak="${abs}.pre-stow.${ts}.bak"
+        [ -n "$rel" ] || continue
+        abs="$target/$rel"
+        if [ -e "$abs" ] && [ ! -L "$abs" ]; then
+          bak="${abs}.pre-stow.${ts}.bak"
           mkdir -p "$(dirname "$bak")"
           mv "$abs" "$bak"
           warn "Backed up: $abs → $bak"
@@ -281,12 +278,12 @@ backup_conflicts() {
 }
 
 run_stow() {
-  local target="$1"
-  local flags=""
-  if [[ $DRYRUN -eq 1 ]]; then flags="-n -v"; fi
+  target="$1"
+  flags=""
+  if [ "$DRYRUN" -eq 1 ]; then flags="-n -v"; fi
   # shellcheck disable=SC2086
   stow $flags -d "$STOW_DIR" -t "$target" common
-  if [[ -d "$STOW_DIR/$OS" ]]; then
+  if [ -d "$STOW_DIR/$OS" ]; then
     # shellcheck disable=SC2086
     stow $flags -d "$STOW_DIR" -t "$target" "$OS"
   fi
@@ -300,7 +297,7 @@ for ver in "${versions[@]}"; do
 
   log "Preparing to stow into: $target"
   backup_conflicts "common" "$target"
-  [[ -d "$STOW_DIR/$OS" ]] && backup_conflicts "$OS" "$target"
+  if [ -d "$STOW_DIR/$OS" ]; then backup_conflicts "$OS" "$target"; fi
 
   log "Stowing into: $target"
   run_stow "$target"
@@ -309,4 +306,4 @@ for ver in "${versions[@]}"; do
 done
 
 log "All done."
-[[ $DRYRUN -eq 1 ]] && warn "This was a dry run. Re-run without --dry-run to apply."
+if [ "$DRYRUN" -eq 1 ]; then warn "This was a dry run. Re-run without --dry-run to apply."; fi
