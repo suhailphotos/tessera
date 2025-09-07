@@ -131,15 +131,27 @@ STOW_DIR="$TES_DIR/apps/houdini/stow"
 
 # ---------- write ignore rules ----------
 ensure_ignore() {
-  local pkg_dir="$1" f="$pkg_dir/.stow-local-ignore"
-  mkdir -p "$pkg_dir"; touch "$f"
-  add_pat() { grep -qxF "$1" "$f" 2>/dev/null || echo "$1" >> "$f"; }
+  # Bash 3.2-safe: set vars on separate lines (set -u friendly)
+  local pkg_dir
+  pkg_dir="$1"
+  local f
+  f="$pkg_dir/.stow-local-ignore"
+
+  mkdir -p "$pkg_dir"
+  touch "$f"
+
+  # append-if-missing helper
+  add_pat() {
+    grep -qxF "$1" "$f" 2>/dev/null || echo "$1" >> "$f"
+  }
+
   add_pat '(^|/)\.DS_Store$'
   add_pat '(^|/)\.git($|/)'
   add_pat '(^|/)\.gitignore$'
   add_pat '(^|/)README(\.md)?$'
   add_pat '(^|/)seed($|/)'
   add_pat '^houdini\.env$'
+  # stow match is from the package root; these patterns work across platforms
   add_pat '(^|/)toolbar/default\.shelf$'
   add_pat '(^|/)toolbar/shelf_tool_assets\.json$'
 }
