@@ -222,6 +222,20 @@ backup_conflicts() {
   done
 }
 
+# --- helper to call stow with optional -n -v in dry-run
+run_stow() {
+  local target="$1"
+  local -a flags=()      # always initialize the array
+  if [[ ${DRYRUN:-0} -eq 1 ]]; then
+    flags=(-n -v)
+  fi
+
+  stow "${flags[@]}" -d "$STOW_DIR" -t "$target" common
+  if [[ -d "$STOW_DIR/$OS" ]]; then
+    stow "${flags[@]}" -d "$STOW_DIR" -t "$target" "$OS"
+  fi
+}
+
 # ---------- stow per version ----------
 for ver in "${versions[@]}"; do
   target="$(pref_dir_for "$ver")"
@@ -231,13 +245,8 @@ for ver in "${versions[@]}"; do
   log "Stowing into: $target"
   DRY=(); (( DRYRUN )) && DRY=(-n -v)
 
-  backup_conflicts "common" "$target"
-  stow "${DRY[@]}" -d "$STOW_DIR" -t "$target" common
-
-  if [[ -d "$STOW_DIR/$OS" ]]; then
-    backup_conflicts "$OS" "$target"
-    stow "${DRY[@]}" -d "$STOW_DIR" -t "$target" "$OS"
-  fi
+  echo "==> Stowing into: $target"
+  run_stow "$target"
 
   log "✔ Stowed for Houdini $ver → $target"
 done
