@@ -6,8 +6,7 @@
         "$HH/otls/",
         "${USD_DRIVE}/houDA/hda"
       ]
-    },
-    { "PATH": [ "/opt/homebrew/bin", "$PATH" ] }
+    }
   ],
   "path": "${DROPBOX}/matrix/packages/houdiniLab/src/houdinilab"
 }
